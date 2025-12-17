@@ -5,8 +5,10 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 // Import your screens/widgets
-import 'package:neat_now/screens/user_dashboard.dart';
+
 import 'package:neat_now/screens/employee_dashboard.dart';
+
+import '../views/user/user_dashboard_view.dart';
 
 /// ==================== LOGIN SCREEN ====================
 /// Single login - differentiates Worker/Citizen based on email domain

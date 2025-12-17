@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:neat_now/screens/splash_screen.dart';
 import 'package:neat_now/screens/login_screen.dart';
-import 'package:neat_now/screens/user_dashboard.dart';
+import 'package:neat_now/views/user/user_dashboard_view.dart';
+import '../../design/user/user_design_system.dart';
 import 'package:neat_now/screens/employee_dashboard.dart';
 import 'package:neat_now/screens/camera_screen.dart';
 
@@ -25,7 +26,7 @@ class NeatNowApp extends StatelessWidget {
       routes: {
         '/splash': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
-       // '/user_dashboard': (context) => const UserDashboardScreen(),
+      //  '/user_dashboard': (context) => const UserDashboard(onLogout: () ),
         '/employee_dashboard': (context) => const EmployeeDashboard(),
         '/camera': (context) => const CameraScreen(),
       },
