@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:neat_now/models/employee_models.dart';
-import 'package:neat_now/widgets/employee/responsive_employee_helper.dart';
+import 'package:neat_now/views/employee/responsive_employee_helper.dart';
 
 /// EmployeeUsersTab - Displays user management list
 class EmployeeUsersTab extends StatelessWidget {

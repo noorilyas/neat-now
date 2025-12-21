@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/employee/leaderboard_models.dart';
 import '../models/employee_models.dart';
 
 /// EmployeeService - Handles all employee/worker API operations

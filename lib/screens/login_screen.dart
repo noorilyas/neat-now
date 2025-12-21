@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:neat_now/screens/forgot_password_screen.dart';
+import 'package:neat_now/screens/register_screen.dart';
+import 'package:neat_now/services/auth_service.dart';
+import 'package:neat_now/config/credentials.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 
-// Import your screens/widgets
-
-import 'package:neat_now/screens/employee_dashboard.dart';
-
+import '../views/employee/employee_dashboard_page.dart';
 import '../views/user/user_dashboard_view.dart';
 
-/// ==================== LOGIN SCREEN ====================
-/// Single login - differentiates Worker/Citizen based on email domain
-/// Citizen emails: any regular email (e.g., user@gmail.com)
-/// Worker emails: @neatnow. work or specific worker emails
+/// LoginScreen - Implements FR-U2 (User Authentication) & FR-W1 (Worker Authentication)
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -21,17 +19,28 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with TickerProviderStateMixin {
-
-  // ==================== CONTROLLERS ====================
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
+  // Controllers
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final FocusNode _emailFocusNode = FocusNode();
   final FocusNode _passwordFocusNode = FocusNode();
 
-  // ==================== ANIMATION CONTROLLERS ====================
+  // Services
+  final AuthService _authService = AuthService();
+
+  // State variables
+  bool _isUserLogin = true;
+  bool _isLoading = false;
+  bool _obscureText = true;
+  bool _rememberMe = false;
+  bool _emailHasFocus = false;
+  bool _passwordHasFocus = false;
+  String? _emailError;
+  String? _passwordError;
+
+  // Animation Controllers
   late AnimationController _fadeController;
   late AnimationController _slideController;
   late AnimationController _scaleController;
@@ -39,100 +48,19 @@ class _LoginScreenState extends State<LoginScreen>
   late AnimationController _pulseController;
   late AnimationController _buttonController;
 
+  // Animations
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
   late Animation<double> _pulseAnimation;
 
-  // ==================== STATE VARIABLES ====================
-  bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _rememberMe = false;
-  bool _emailHasFocus = false;
-  bool _passwordHasFocus = false;
-  String? _emailError;
-  String? _passwordError;
-
   // Particles for background animation
-  final List<_Particle> _particles = [];
+  final List<Particle> _particles = [];
 
-  // ==================== DEMO CREDENTIALS ====================
-  // Worker emails end with @neatnow.work or are in the worker list
-  static const List<String> _workerEmails = [
-    'worker@neatnow. work',
-    'admin@neatnow.work',
-    'employee@neatnow.work',
-  ];
-
-  // Demo accounts for testing
-  static const Map<String, Map<String, dynamic>> _demoAccounts = {
-    // Citizen accounts
-    'user@gmail.com': {
-      'password': 'user123',
-      'type': 'citizen',
-      'data': {
-        'id': '1',
-        'name': 'Ahmad Ali',
-        'email': 'user@gmail.com',
-        'phone': '+92 300 1234567',
-        'profileImage': null,
-        'totalReports': 25,
-        'verifiedReports': 18,
-        'rank': 5,
-        'badge': 'Eco Warrior',
-      },
-    },
-    'citizen@example.com': {
-      'password': 'citizen123',
-      'type': 'citizen',
-      'data': {
-        'id': '2',
-        'name': 'Sara Khan',
-        'email': 'citizen@example.com',
-        'phone': '+92 301 9876543',
-        'profileImage': null,
-        'totalReports': 42,
-        'verifiedReports': 35,
-        'rank': 2,
-        'badge': 'Top Contributor',
-      },
-    },
-    // Worker accounts
-    'worker@neatnow.work': {
-      'password': 'worker123',
-      'type': 'worker',
-      'data': {
-        'id': '1',
-        'name': 'Ali Hassan',
-        'email': 'worker@neatnow. work',
-        'phone': '+92 302 5555555',
-        'employeeId': 'EMP001',
-        'profileImage': null,
-        'completedTasks': 45,
-        'pendingTasks': 3,
-        'rating': 4.8,
-        'badges': ['Fast Responder', 'Top Performer'],
-      },
-    },
-    'admin@neatnow.work': {
-      'password': 'admin123',
-      'type': 'worker',
-      'data': {
-        'id': '2',
-        'name': 'Bilal Ahmed',
-        'email': 'admin@neatnow. work',
-        'phone': '+92 303 1111111',
-        'employeeId': 'EMP002',
-        'profileImage': null,
-        'completedTasks': 120,
-        'pendingTasks': 5,
-        'rating': 4.9,
-        'badges': ['Team Lead', 'Excellence Award'],
-      },
-    },
-  };
-
-  // ==================== LIFECYCLE ====================
+  // Screen size breakpoints
+  static const double _mobileBreakpoint = 480;
+  static const double _tabletBreakpoint = 768;
+  static const double _desktopBreakpoint = 1024;
 
   @override
   void initState() {
@@ -141,6 +69,7 @@ class _LoginScreenState extends State<LoginScreen>
     _initializeParticles();
     _initializeAnimations();
     _setupFocusListeners();
+    _loadSavedCredentials();
     _startAnimations();
   }
 
@@ -157,26 +86,46 @@ class _LoginScreenState extends State<LoginScreen>
 
   void _initializeParticles() {
     for (int i = 0; i < 35; i++) {
-      _particles.add(_Particle());
+      _particles.add(Particle());
     }
   }
 
   void _initializeAnimations() {
-    // Fade Animation
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
+
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 1400),
+      vsync: this,
+    );
+
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _particleController = AnimationController(
+      duration: const Duration(seconds: 20),
+      vsync: this,
+    )..repeat();
+
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 2500),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _buttonController = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+
     _fadeAnimation = CurvedAnimation(
       parent: _fadeController,
       curve: Curves.easeOutQuart,
     );
 
-    // Slide Animation
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 1400),
-      vsync: this,
-    );
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.25),
       end: Offset.zero,
@@ -185,27 +134,11 @@ class _LoginScreenState extends State<LoginScreen>
       curve: Curves.easeOutCubic,
     ));
 
-    // Scale Animation
-    _scaleController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
     _scaleAnimation = CurvedAnimation(
       parent: _scaleController,
       curve: Curves. elasticOut,
     );
 
-    // Particle Animation
-    _particleController = AnimationController(
-      duration: const Duration(seconds: 20),
-      vsync: this,
-    ).. repeat();
-
-    // Pulse Animation
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 2500),
-      vsync: this,
-    )..repeat(reverse: true);
     _pulseAnimation = Tween<double>(
       begin: 1.0,
       end: 1.04,
@@ -213,28 +146,36 @@ class _LoginScreenState extends State<LoginScreen>
       parent: _pulseController,
       curve: Curves.easeInOutSine,
     ));
-
-    // Button Animation
-    _buttonController = AnimationController(
-      duration: const Duration(milliseconds: 150),
-      vsync: this,
-    );
   }
 
   void _setupFocusListeners() {
-    _emailFocusNode.addListener(() {
+    _emailFocusNode. addListener(() {
       setState(() => _emailHasFocus = _emailFocusNode.hasFocus);
-      if (!_emailFocusNode.hasFocus) {
+      if (! _emailFocusNode.hasFocus) {
         _validateEmail(_emailController.text);
       }
     });
 
-    _passwordFocusNode.addListener(() {
+    _passwordFocusNode. addListener(() {
       setState(() => _passwordHasFocus = _passwordFocusNode.hasFocus);
       if (!_passwordFocusNode.hasFocus) {
-        _validatePassword(_passwordController. text);
+        _validatePassword(_passwordController.text);
       }
     });
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final savedData = await _authService.getSavedCredentials();
+      if (savedData != null && savedData['remember'] == true) {
+        setState(() {
+          _emailController.text = savedData['email'] ?? '';
+          _rememberMe = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading saved credentials: $e');
+    }
   }
 
   void _startAnimations() async {
@@ -249,48 +190,18 @@ class _LoginScreenState extends State<LoginScreen>
   void dispose() {
     _emailController.dispose();
     _passwordController. dispose();
-    _emailFocusNode. dispose();
+    _emailFocusNode.dispose();
     _passwordFocusNode.dispose();
     _fadeController.dispose();
-    _slideController.dispose();
+    _slideController. dispose();
     _scaleController.dispose();
-    _particleController. dispose();
+    _particleController.dispose();
     _pulseController.dispose();
-    _buttonController.dispose();
+    _buttonController. dispose();
     super.dispose();
   }
 
-  // ==================== HELPER METHODS ====================
-
-  /// Check if email belongs to a worker
-  bool _isWorkerEmail(String email) {
-    final lowerEmail = email. toLowerCase(). trim();
-
-    // Check if email ends with worker domain
-    if (lowerEmail.endsWith('@neatnow.work')) {
-      return true;
-    }
-
-    // Check if email is in the worker list
-    if (_workerEmails.contains(lowerEmail)) {
-      return true;
-    }
-
-    // Check in demo accounts
-    final account = _demoAccounts[lowerEmail];
-    if (account != null && account['type'] == 'worker') {
-      return true;
-    }
-
-    return false;
-  }
-
-  /// Get user type label for display
-  String _getUserTypeLabel(String email) {
-    return _isWorkerEmail(email) ? 'Worker' : 'Citizen';
-  }
-
-  // ==================== VALIDATION ====================
+  // ==================== VALIDATION METHODS ====================
 
   bool _validateEmail(String email) {
     if (email.isEmpty) {
@@ -299,7 +210,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
 
     final emailRegex = RegExp(
-      r'^[a-zA-Z0-9. _%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
     );
 
     if (!emailRegex. hasMatch(email)) {
@@ -327,17 +238,17 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   bool _validateForm() {
-    final isEmailValid = _validateEmail(_emailController.text. trim());
+    final isEmailValid = _validateEmail(_emailController. text. trim());
     final isPasswordValid = _validatePassword(_passwordController.text);
     return isEmailValid && isPasswordValid;
   }
 
-  // ==================== AUTHENTICATION ====================
+  // ==================== AUTHENTICATION METHODS ====================
 
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
 
-    if (!_validateForm()) {
+    if (! _validateForm()) {
       HapticFeedback.lightImpact();
       return;
     }
@@ -346,54 +257,60 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Simulate API call
-      await Future.delayed(const Duration(milliseconds: 1500));
+      final result = await _authService.login(
+        _emailController.text. trim(). toLowerCase(),
+        _passwordController.text,
+        _isUserLogin,
+      );
 
       if (! mounted) return;
 
-      final email = _emailController. text.trim(). toLowerCase();
-      final password = _passwordController.text;
-
-      // Check credentials in demo accounts
-      final account = _demoAccounts[email];
-
-      bool isValidCredentials = false;
-      Map<String, dynamic> userData = {};
-      bool isWorker = false;
-
-      if (account != null && account['password'] == password) {
-        isValidCredentials = true;
-        userData = Map<String, dynamic>. from(account['data']);
-        isWorker = account['type'] == 'worker';
-      }
-
       setState(() => _isLoading = false);
 
-      if (isValidCredentials) {
-        final userTypeLabel = isWorker ? 'Worker' : 'Citizen';
+      if (result['success'] == true) {
+        if (_rememberMe) {
+          await _authService.saveCredentials(
+            email: _emailController. text.trim(),
+            remember: true,
+          );
+        } else {
+          await _authService.clearSavedCredentials();
+        }
 
         _showSnackBar(
-          title: 'Welcome back! ',
-          message: 'Logged in as $userTypeLabel',
+          title: 'Welcome back!',
+          message: _isUserLogin ? 'Logged in as Citizen' : 'Logged in as Worker',
           isError: false,
-          icon: isWorker ? Icons. badge_rounded : Icons.person_rounded,
         );
 
         await Future.delayed(const Duration(milliseconds: 600));
 
         if (! mounted) return;
 
+        // Get user data from result
+        final userData = result['userData'] as Map<String, dynamic>?  ??  {
+          'id': '1',
+          'name': result['name'] ??  'User',
+          'email': _emailController.text. trim(),
+          'phone': result['phone'] ?? '',
+          'profileImage': result['profileImage'],
+          'totalReports': result['totalReports'] ?? 0,
+          'verifiedReports': result['verifiedReports'] ??  0,
+          'rank': result['rank'] ?? 0,
+          'badge': result['badge'],
+        };
+
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) {
-              if (isWorker) {
-                return EmployeeDashboard(
-                );
-              } else {
+              if (_isUserLogin) {
                 return UserDashboard(
                   userData: userData,
                   onLogout: () => _handleLogout(context),
+                );
+              } else {
+                return EmployeeDashboard(
                 );
               }
             },
@@ -403,16 +320,25 @@ class _LoginScreenState extends State<LoginScreen>
                   parent: animation,
                   curve: Curves.easeOutCubic,
                 ),
-                child: child,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.02, 0),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  )),
+                  child: child,
+                ),
               );
             },
-            transitionDuration: const Duration(milliseconds: 500),
+            transitionDuration: const Duration(milliseconds: 600),
           ),
         );
       } else {
         _showSnackBar(
           title: 'Login Failed',
-          message: 'Invalid email or password',
+          message: result['message'] ??  'Invalid email or password',
           isError: true,
         );
       }
@@ -423,7 +349,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       _showSnackBar(
         title: 'Connection Error',
-        message: 'Please check your internet connection',
+        message: 'Please check your internet connection and try again.',
         isError: true,
       );
     }
@@ -437,27 +363,52 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  void _fillDemoCredentials({required bool asWorker}) {
+  Future<void> _googleSignIn() async {
     HapticFeedback.lightImpact();
+    _showSnackBar(
+      title: 'Coming Soon',
+      message: 'Google Sign-In will be available in the next update! ',
+      isError: false,
+    );
+  }
 
-    if (asWorker) {
-      _emailController.text = 'worker@neatnow.work';
-      _passwordController.text = 'worker123';
-    } else {
-      _emailController.text = 'user@gmail.com';
-      _passwordController.text = 'user123';
-    }
+  void _navigateToForgotPassword() {
+    HapticFeedback.lightImpact();
+    Navigator. push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ForgotPasswordScreen(),
+      ),
+    );
+  }
 
+  void _navigateToRegister() {
+    HapticFeedback. lightImpact();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const RegisterScreen(),
+      ),
+    );
+  }
+
+  void _fillDemoCredentials() {
+    HapticFeedback.lightImpact();
     setState(() {
+      _emailController.text = _isUserLogin
+          ? AppCredentials.demoUserEmail
+          : AppCredentials.demoEmployeeEmail;
+      _passwordController.text = _isUserLogin
+          ? AppCredentials. demoUserPassword
+          : AppCredentials.demoEmployeePassword;
       _emailError = null;
       _passwordError = null;
     });
 
     _showSnackBar(
       title: 'Demo Credentials',
-      message: 'Filled ${asWorker ? "Worker" : "Citizen"} credentials',
+      message: 'Filled ${_isUserLogin ?  "Citizen" : "Worker"} credentials',
       isError: false,
-      icon: asWorker ? Icons. badge_rounded : Icons.person_rounded,
     );
   }
 
@@ -465,21 +416,20 @@ class _LoginScreenState extends State<LoginScreen>
     required String title,
     required String message,
     required bool isError,
-    IconData? icon,
   }) {
-    ScaffoldMessenger.of(context). hideCurrentSnackBar();
+    ScaffoldMessenger. of(context).hideCurrentSnackBar();
     ScaffoldMessenger. of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets. all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors. white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
-                icon ??  (isError ? Icons. error_outline_rounded : Icons.check_circle_rounded),
+                isError ? Icons.error_outline_rounded : Icons.check_circle_rounded,
                 color: Colors.white,
                 size: 24,
               ),
@@ -488,7 +438,7 @@ class _LoginScreenState extends State<LoginScreen>
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: MainAxisSize. min,
                 children: [
                   Text(
                     title,
@@ -507,7 +457,7 @@ class _LoginScreenState extends State<LoginScreen>
                       color: Colors.white. withOpacity(0.9),
                     ),
                     maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    overflow: TextOverflow. ellipsis,
                   ),
                 ],
               ),
@@ -523,163 +473,313 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
         elevation: 8,
       ),
     );
   }
 
-  // ==================== BUILD ====================
+  // ==================== RESPONSIVE HELPERS ====================
 
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+  ScreenSize _getScreenSize(double width) {
+    if (width < _mobileBreakpoint) return ScreenSize.small;
+    if (width < _tabletBreakpoint) return ScreenSize.mobile;
+    if (width < _desktopBreakpoint) return ScreenSize. tablet;
+    return ScreenSize.desktop;
+  }
 
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF022c22),
-              Color(0xFF064e3b),
-              Color(0xFF047857),
-              Color(0xFF059669),
-              Color(0xFF10b981),
-            ],
-            stops: [0.0, 0.25, 0.5, 0.75, 1.0],
-          ),
-        ),
-        child: Stack(
-          children: [
-            // Animated Particles Background
-            AnimatedBuilder(
-              animation: _particleController,
-              builder: (context, child) {
-                return CustomPaint(
-                  painter: _ParticlePainter(
-                    _particles,
-                    _particleController.value,
-                    size.width,
-                    size.height,
-                  ),
-                  size: Size. infinite,
-                );
-              },
-            ),
+  ResponsiveConfig _getResponsiveConfig(BoxConstraints constraints) {
+    final screenWidth = constraints.maxWidth;
+    final screenHeight = constraints.maxHeight;
+    final screenSize = _getScreenSize(screenWidth);
+    final isLandscape = screenWidth > screenHeight;
 
-            // Decorative Gradient Orbs
-            _buildDecorativeOrbs(size),
+    double containerWidth;
+    double padding;
+    double logoSize;
+    double fontScale;
+    double buttonHeight;
+    double inputHeight;
+    bool showFloatingIcons;
+    bool compactMode;
 
-            // Main Content
-            SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: _getHorizontalPadding(size. width),
-                    vertical: 24,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: _getMaxWidth(size.width),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Logo
-                        ScaleTransition(
-                          scale: _scaleAnimation,
-                          child: FadeTransition(
-                            opacity: _fadeAnimation,
-                            child: AnimatedBuilder(
-                              animation: _pulseAnimation,
-                              builder: (context, child) {
-                                return Transform.scale(
-                                  scale: _pulseAnimation.value,
-                                  child: _buildLogo(),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
+    switch (screenSize) {
+      case ScreenSize.small:
+        containerWidth = screenWidth * 0.95;
+        padding = 12.0;
+        logoSize = math.min(80.0, screenWidth * 0.2);
+        fontScale = 0.85;
+        buttonHeight = 48.0;
+        inputHeight = 52.0;
+        showFloatingIcons = false;
+        compactMode = true;
+        break;
+      case ScreenSize. mobile:
+        containerWidth = math.min(400.0, screenWidth * 0.92);
+        padding = 16.0;
+        logoSize = math.min(100.0, screenWidth * 0.22);
+        fontScale = 1.0;
+        buttonHeight = 54.0;
+        inputHeight = 56.0;
+        showFloatingIcons = ! isLandscape;
+        compactMode = isLandscape;
+        break;
+      case ScreenSize. tablet:
+        containerWidth = math.min(450.0, screenWidth * 0.7);
+        padding = 20.0;
+        logoSize = 110.0;
+        fontScale = 1.1;
+        buttonHeight = 58.0;
+        inputHeight = 60.0;
+        showFloatingIcons = true;
+        compactMode = false;
+        break;
+      case ScreenSize.desktop:
+        containerWidth = math.min(480.0, screenWidth * 0.4);
+        padding = 24.0;
+        logoSize = 120.0;
+        fontScale = 1.15;
+        buttonHeight = 60.0;
+        inputHeight = 62.0;
+        showFloatingIcons = true;
+        compactMode = false;
+        break;
+    }
 
-                        const SizedBox(height: 24),
-
-                        // Welcome Text
-                        FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: SlideTransition(
-                            position: _slideAnimation,
-                            child: _buildWelcomeText(),
-                          ),
-                        ),
-
-                        const SizedBox(height: 32),
-
-                        // Login Form
-                        FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: SlideTransition(
-                            position: _slideAnimation,
-                            child: _buildLoginForm(),
-                          ),
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        // Demo Credentials
-                        FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: _buildDemoCredentials(),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // Footer
-                        FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: _buildFooter(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return ResponsiveConfig(
+      screenWidth: screenWidth,
+      screenHeight: screenHeight,
+      containerWidth: containerWidth,
+      padding: padding,
+      logoSize: logoSize,
+      fontScale: fontScale,
+      buttonHeight: buttonHeight,
+      inputHeight: inputHeight,
+      showFloatingIcons: showFloatingIcons,
+      compactMode: compactMode,
+      isLandscape: isLandscape,
+      screenSize: screenSize,
     );
   }
 
-  double _getHorizontalPadding(double width) {
-    if (width < 400) return 16;
-    if (width < 600) return 24;
-    return 32;
+  // ==================== BUILD METHODS ====================
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final config = _getResponsiveConfig(constraints);
+
+        return Scaffold(
+          resizeToAvoidBottomInset: true,
+          body: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF022c22),
+                  Color(0xFF064e3b),
+                  Color(0xFF047857),
+                  Color(0xFF059669),
+                  Color(0xFF10b981),
+                ],
+                stops: [0.0, 0.25, 0.5, 0.75, 1.0],
+              ),
+            ),
+            child: Stack(
+              children: [
+                // Animated particles background
+                AnimatedBuilder(
+                  animation: _particleController,
+                  builder: (context, child) {
+                    return CustomPaint(
+                      painter: ParticlePainter(
+                        _particles,
+                        _particleController.value,
+                        config. screenWidth,
+                        config.screenHeight,
+                      ),
+                      size: Size. infinite,
+                    );
+                  },
+                ),
+
+                // Decorative gradient orbs
+                _buildDecorativeOrbs(config),
+
+                // Main content
+                SafeArea(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: config.padding,
+                        vertical: config.compactMode
+                            ? config. padding * 0.5
+                            : config.padding,
+                      ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: config.containerWidth,
+                        ),
+                        child: config.isLandscape && config.screenSize == ScreenSize.mobile
+                            ? _buildLandscapeLayout(config)
+                            : _buildPortraitLayout(config),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  double _getMaxWidth(double width) {
-    if (width < 500) return width * 0.92;
-    if (width < 800) return 420;
-    return 450;
+  Widget _buildPortraitLayout(ResponsiveConfig config) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Logo with animation
+        if (! config.compactMode)
+          ScaleTransition(
+            scale: _scaleAnimation,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _pulseAnimation.value,
+                    child: _buildLogo(config),
+                  );
+                },
+              ),
+            ),
+          ),
+
+        SizedBox(height: config.padding * 1.2),
+
+        // Welcome text
+        FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: _buildWelcomeText(config),
+          ),
+        ),
+
+        SizedBox(height: config. padding * (config.compactMode ? 1.0 : 1.5)),
+
+        // Login type toggle
+        FadeTransition(
+          opacity: _fadeAnimation,
+          child: _buildLoginTypeToggle(config),
+        ),
+
+        SizedBox(height: config.padding * (config.compactMode ? 1.0 : 1.3)),
+
+        // Login form
+        FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: _buildLoginForm(config),
+          ),
+        ),
+
+        SizedBox(height: config.padding * 0.8),
+
+        // Demo credentials
+        FadeTransition(
+          opacity: _fadeAnimation,
+          child: _buildDemoCredentials(config),
+        ),
+
+        if (! config.compactMode) ...[
+          SizedBox(height: config.padding * 0.6),
+
+          // Footer
+          FadeTransition(
+            opacity: _fadeAnimation,
+            child: _buildFooter(config),
+          ),
+        ],
+      ],
+    );
   }
 
-  // ==================== DECORATIVE ELEMENTS ====================
+  Widget _buildLandscapeLayout(ResponsiveConfig config) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Left side - Logo and welcome
+        Expanded(
+          flex: 4,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ScaleTransition(
+                scale: _scaleAnimation,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: _buildLogo(config),
+                ),
+              ),
+              SizedBox(height: config.padding),
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: _buildWelcomeText(config),
+              ),
+              SizedBox(height: config.padding),
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: _buildDemoCredentials(config),
+              ),
+            ],
+          ),
+        ),
 
-  Widget _buildDecorativeOrbs(Size size) {
+        SizedBox(width: config.padding),
+
+        // Right side - Form
+        Expanded(
+          flex: 5,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: _buildLoginTypeToggle(config),
+              ),
+              SizedBox(height: config.padding),
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: _buildLoginForm(config),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDecorativeOrbs(ResponsiveConfig config) {
     return Stack(
       children: [
         Positioned(
-          top: -size.height * 0.1,
-          right: -size.width * 0.15,
+          top: -config.screenHeight * 0.1,
+          right: -config.screenWidth * 0.15,
           child: Container(
-            width: size.width * 0.5,
-            height: size.width * 0.5,
+            width: config.screenWidth * 0.5,
+            height: config.screenWidth * 0.5,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: RadialGradient(
@@ -692,13 +792,13 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
         Positioned(
-          bottom: -size.height * 0.05,
-          left: -size.width * 0.1,
+          bottom: -config.screenHeight * 0.05,
+          left: -config.screenWidth * 0.1,
           child: Container(
-            width: size.width * 0.4,
-            height: size.width * 0.4,
+            width: config.screenWidth * 0.4,
+            height: config.screenWidth * 0.4,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
+              shape: BoxShape. circle,
               gradient: RadialGradient(
                 colors: [
                   const Color(0xFF059669).withOpacity(0.12),
@@ -712,18 +812,16 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ==================== LOGO ====================
-
-  Widget _buildLogo() {
+  Widget _buildLogo(ResponsiveConfig config) {
     return Container(
-      width: 120,
-      height: 120,
+      width: config.logoSize,
+      height: config.logoSize,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF10b981).withOpacity(0.5),
+            color: const Color(0xFF10b981). withOpacity(0.5),
             blurRadius: 40,
             spreadRadius: 10,
           ),
@@ -739,10 +837,10 @@ class _LoginScreenState extends State<LoginScreen>
         children: [
           // Outer ring
           Container(
-            width: 104,
-            height: 104,
+            width: config.logoSize * 0.88,
+            height: config.logoSize * 0.88,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
+              shape: BoxShape. circle,
               border: Border.all(
                 color: const Color(0xFF10b981). withOpacity(0.25),
                 width: 2,
@@ -758,16 +856,19 @@ class _LoginScreenState extends State<LoginScreen>
                   begin: Alignment.topLeft,
                   end: Alignment. bottomRight,
                   colors: [Color(0xFF047857), Color(0xFF10b981)],
-                ).createShader(bounds),
-                child: const Icon(
-                  Icons.eco_rounded,
-                  size: 42,
+                ). createShader(bounds),
+                child: Icon(
+                  Icons.camera_alt_rounded,
+                  size: config.logoSize * 0.32,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: config.logoSize * 0.02),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: EdgeInsets. symmetric(
+                  horizontal: config.logoSize * 0.1,
+                  vertical: config.logoSize * 0.03,
+                ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF047857), Color(0xFF10b981)],
@@ -781,14 +882,24 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ],
                 ),
-                child: Text(
-                  'NeatNow',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight. w800,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize. min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
+                      size: config.logoSize * 0.07,
+                      color: Colors.white,
+                    ),
+                    SizedBox(width: config. logoSize * 0.02),
+                    Text(
+                      'AI',
+                      style: GoogleFonts. poppins(
+                        fontSize: config.logoSize * 0.09,
+                        fontWeight: FontWeight. w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -798,21 +909,19 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ==================== WELCOME TEXT ====================
-
-  Widget _buildWelcomeText() {
+  Widget _buildWelcomeText(ResponsiveConfig config) {
     return Column(
       children: [
         Text(
-          'Welcome Back!  👋',
-          style: GoogleFonts.poppins(
-            fontSize: 30,
+          'Welcome Back! ',
+          style: GoogleFonts. poppins(
+            fontSize: 26 * config.fontScale,
             fontWeight: FontWeight.w800,
             color: Colors.white,
             letterSpacing: -0.5,
             shadows: [
               Shadow(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black. withOpacity(0.2),
                 offset: const Offset(0, 3),
                 blurRadius: 10,
               ),
@@ -820,23 +929,16 @@ class _LoginScreenState extends State<LoginScreen>
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 10),
-        Text(
-          'Sign in to continue',
-          style: GoogleFonts. poppins(
-            fontSize: 16,
-            color: Colors.white. withOpacity(0.85),
-            fontWeight: FontWeight. w500,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 12),
+        SizedBox(height: config.padding * 0.3),
         Container(
-          padding: const EdgeInsets. symmetric(horizontal: 18, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: config.padding * 0.8,
+            vertical: config.padding * 0.35,
+          ),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors. white.withOpacity(0.15),
+                Colors.white.withOpacity(0.15),
                 Colors. white.withOpacity(0.08),
               ],
             ),
@@ -850,24 +952,27 @@ class _LoginScreenState extends State<LoginScreen>
             mainAxisSize: MainAxisSize. min,
             children: [
               Container(
-                padding: const EdgeInsets. all(6),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: Colors.white. withOpacity(0.15),
+                  color: Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius. circular(8),
                 ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
+                child: Icon(
+                  Icons. eco_rounded,
                   color: Colors.white,
-                  size: 16,
+                  size: 14 * config.fontScale,
                 ),
               ),
-              const SizedBox(width: 10),
-              Text(
-                'AI-Powered Waste Detection',
-                style: GoogleFonts. poppins(
-                  fontSize: 13,
-                  color: Colors.white. withOpacity(0.95),
-                  fontWeight: FontWeight. w600,
+              SizedBox(width: 8 * config.fontScale),
+              Flexible(
+                child: Text(
+                  'AI-Powered Waste Detection',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11 * config.fontScale,
+                    color: Colors.white. withOpacity(0.95),
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow. ellipsis,
                 ),
               ),
             ],
@@ -877,15 +982,149 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ==================== LOGIN FORM ====================
+  Widget _buildLoginTypeToggle(ResponsiveConfig config) {
+    final toggleWidth = math.min(320.0, config.containerWidth * 0.85);
 
-  Widget _buildLoginForm() {
+    return Container(
+      width: toggleWidth,
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors. white.withOpacity(0.12),
+            Colors. white.withOpacity(0.06),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(35),
+        border: Border.all(
+          color: Colors. white.withOpacity(0.2),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          _buildToggleOption(
+            label: 'Citizen',
+            icon: Icons.person_rounded,
+            isActive: _isUserLogin,
+            config: config,
+            onTap: () {
+              if (! _isUserLogin) {
+                HapticFeedback. selectionClick();
+                setState(() {
+                  _isUserLogin = true;
+                  _clearForm();
+                });
+              }
+            },
+          ),
+          _buildToggleOption(
+            label: 'Worker',
+            icon: Icons. cleaning_services_rounded,
+            isActive: !_isUserLogin,
+            config: config,
+            onTap: () {
+              if (_isUserLogin) {
+                HapticFeedback.selectionClick();
+                setState(() {
+                  _isUserLogin = false;
+                  _clearForm();
+                });
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleOption({
+    required String label,
+    required IconData icon,
+    required bool isActive,
+    required ResponsiveConfig config,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(vertical: 12 * config.fontScale),
+          decoration: BoxDecoration(
+            gradient: isActive
+                ? const LinearGradient(
+              colors: [Colors.white, Color(0xFFF0FDF4)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            )
+                : null,
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: isActive
+                ? [
+              BoxShadow(
+                color: Colors. black.withOpacity(0.12),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ]
+                : [],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment. center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                padding: EdgeInsets. all(isActive ? 6 : 0),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? const Color(0xFF10b981). withOpacity(0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius. circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  color: isActive
+                      ? const Color(0xFF047857)
+                      : Colors.white. withOpacity(0.85),
+                  size: 18 * config.fontScale,
+                ),
+              ),
+              SizedBox(width: 6 * config.fontScale),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  color: isActive
+                      ? const Color(0xFF047857)
+                      : Colors.white.withOpacity(0.85),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13 * config.fontScale,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _clearForm() {
+    _emailController.clear();
+    _passwordController.clear();
+    _emailError = null;
+    _passwordError = null;
+  }
+
+  Widget _buildLoginForm(ResponsiveConfig config) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(28),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: Container(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(config.padding * 1.2),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -914,11 +1153,55 @@ class _LoginScreenState extends State<LoginScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                _buildFormHeader(),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF10b981).withOpacity(0.15),
+                            const Color(0xFF059669).withOpacity(0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius. circular(12),
+                      ),
+                      child: Icon(
+                        _isUserLogin ? Icons.person_rounded : Icons.badge_rounded,
+                        color: const Color(0xFF047857),
+                        size: 22,
+                      ),
+                    ),
+                    SizedBox(width: 12 * config.fontScale),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment. start,
+                        children: [
+                          Text(
+                            _isUserLogin ?  'Citizen Login' : 'Worker Login',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18 * config.fontScale,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1a1a2e),
+                            ),
+                          ),
+                          Text(
+                            'Enter your credentials',
+                            style: GoogleFonts. poppins(
+                              fontSize: 11 * config.fontScale,
+                              color: Colors.grey[500],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
 
-                const SizedBox(height: 28),
+                SizedBox(height: config.padding * 1.1),
 
-                // Email Field
+                // Email field
                 _buildTextField(
                   controller: _emailController,
                   focusNode: _emailFocusNode,
@@ -927,6 +1210,7 @@ class _LoginScreenState extends State<LoginScreen>
                   icon: Icons.email_rounded,
                   error: _emailError,
                   isFocused: _emailHasFocus,
+                  config: config,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) {
@@ -934,9 +1218,9 @@ class _LoginScreenState extends State<LoginScreen>
                   },
                 ),
 
-                const SizedBox(height: 20),
+                SizedBox(height: config.padding * 0.8),
 
-                // Password Field
+                // Password field
                 _buildTextField(
                   controller: _passwordController,
                   focusNode: _passwordFocusNode,
@@ -945,89 +1229,41 @@ class _LoginScreenState extends State<LoginScreen>
                   icon: Icons.lock_rounded,
                   error: _passwordError,
                   isFocused: _passwordHasFocus,
+                  config: config,
                   isPassword: true,
-                  textInputAction: TextInputAction. done,
+                  textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _login(),
                 ),
 
-                const SizedBox(height: 18),
+                SizedBox(height: config.padding * 0.6),
 
-                // Remember Me & Forgot Password
-                _buildFormOptions(),
+                // Remember me & Forgot password
+                _buildFormOptions(config),
 
-                const SizedBox(height: 28),
+                SizedBox(height: config.padding * 1.1),
 
-                // Login Button
-                _buildLoginButton(),
+                // Login button
+                _buildLoginButton(config),
 
-                const SizedBox(height: 24),
+                SizedBox(height: config.padding * 0.8),
 
                 // Divider
-                _buildDivider(),
+                _buildDivider(config),
 
-                const SizedBox(height: 24),
+                SizedBox(height: config.padding * 0.8),
 
                 // Google Sign-In
-                _buildGoogleSignInButton(),
+                _buildGoogleSignInButton(config),
 
-                const SizedBox(height: 24),
-
-                // Register Link
-                _buildRegisterLink(),
+                if (_isUserLogin) ...[
+                  SizedBox(height: config.padding * 0.8),
+                  _buildRegisterLink(config),
+                ],
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildFormHeader() {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets. all(12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                const Color(0xFF10b981).withOpacity(0.15),
-                const Color(0xFF059669).withOpacity(0.1),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: const Icon(
-            Icons. login_rounded,
-            color: Color(0xFF047857),
-            size: 26,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Sign In',
-                style: GoogleFonts. poppins(
-                  fontSize: 22,
-                  fontWeight: FontWeight. w700,
-                  color: const Color(0xFF1a1a2e),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Access your account',
-                style: GoogleFonts. poppins(
-                  fontSize: 13,
-                  color: Colors.grey[500],
-                  fontWeight: FontWeight. w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -1039,6 +1275,7 @@ class _LoginScreenState extends State<LoginScreen>
     required IconData icon,
     required String?  error,
     required bool isFocused,
+    required ResponsiveConfig config,
     TextInputType keyboardType = TextInputType.text,
     TextInputAction textInputAction = TextInputAction.next,
     bool isPassword = false,
@@ -1052,8 +1289,8 @@ class _LoginScreenState extends State<LoginScreen>
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontSize: 12 * config.fontScale,
+            fontWeight: FontWeight. w600,
             color: hasError
                 ? const Color(0xFFDC2626)
                 : isFocused
@@ -1061,7 +1298,7 @@ class _LoginScreenState extends State<LoginScreen>
                 : const Color(0xFF4a4a4a),
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 6 * config.fontScale),
         AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
@@ -1083,32 +1320,32 @@ class _LoginScreenState extends State<LoginScreen>
             focusNode: focusNode,
             keyboardType: keyboardType,
             textInputAction: textInputAction,
-            obscureText: isPassword && _obscurePassword,
+            obscureText: isPassword && _obscureText,
             onSubmitted: onSubmitted,
             style: GoogleFonts.poppins(
-              fontSize: 15,
+              fontSize: 14 * config.fontScale,
               color: const Color(0xFF1a1a2e),
               fontWeight: FontWeight.w500,
             ),
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: 13 * config.fontScale,
                 color: Colors.grey[400],
               ),
               prefixIcon: Container(
                 margin: const EdgeInsets.all(10),
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: hasError
                         ?  [
-                      const Color(0xFFDC2626). withOpacity(0.15),
+                      const Color(0xFFDC2626).withOpacity(0.15),
                       const Color(0xFFDC2626).withOpacity(0.08),
                     ]
                         : isFocused
                         ? [
-                      const Color(0xFF10b981).withOpacity(0.18),
+                      const Color(0xFF10b981). withOpacity(0.18),
                       const Color(0xFF059669).withOpacity(0.1),
                     ]
                         : [
@@ -1123,30 +1360,30 @@ class _LoginScreenState extends State<LoginScreen>
                   color: hasError
                       ? const Color(0xFFDC2626)
                       : isFocused
-                      ? const Color(0xFF047857)
+                      ?  const Color(0xFF047857)
                       : const Color(0xFF059669),
-                  size: 20,
+                  size: 18 * config.fontScale,
                 ),
               ),
               suffixIcon: isPassword
-                  ? GestureDetector(
+                  ?  GestureDetector(
                 onTap: () {
                   HapticFeedback.selectionClick();
-                  setState(() => _obscurePassword = !_obscurePassword);
+                  setState(() => _obscureText = !_obscureText);
                 },
                 child: Container(
                   margin: const EdgeInsets.all(10),
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.grey. withOpacity(0.1),
-                    borderRadius: BorderRadius. circular(10),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
-                    _obscurePassword
+                    _obscureText
                         ? Icons. visibility_off_rounded
                         : Icons.visibility_rounded,
                     color: Colors.grey[600],
-                    size: 20,
+                    size: 18 * config.fontScale,
                   ),
                 ),
               )
@@ -1155,7 +1392,7 @@ class _LoginScreenState extends State<LoginScreen>
               fillColor: hasError
                   ?  const Color(0xFFFEF2F2)
                   : isFocused
-                  ?  const Color(0xFFF0FDF4)
+                  ? const Color(0xFFF0FDF4)
                   : const Color(0xFFF8F9FA),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius. circular(16),
@@ -1165,7 +1402,7 @@ class _LoginScreenState extends State<LoginScreen>
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide(
                   color: hasError
-                      ? const Color(0xFFDC2626). withOpacity(0.5)
+                      ?  const Color(0xFFDC2626). withOpacity(0.5)
                       : Colors.grey. withOpacity(0.1),
                   width: 1.5,
                 ),
@@ -1179,28 +1416,28 @@ class _LoginScreenState extends State<LoginScreen>
                   width: 2,
                 ),
               ),
-              contentPadding: const EdgeInsets.symmetric(
+              contentPadding: EdgeInsets.symmetric(
                 horizontal: 16,
-                vertical: 18,
+                vertical: 16 * config.fontScale,
               ),
             ),
           ),
         ),
         if (hasError) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 4 * config.fontScale),
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline_rounded,
-                size: 14,
-                color: Color(0xFFDC2626),
+                size: 14 * config.fontScale,
+                color: const Color(0xFFDC2626),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 4 * config.fontScale),
               Expanded(
                 child: Text(
-                  error,
+                  error! ,
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: 11 * config.fontScale,
                     color: const Color(0xFFDC2626),
                     fontWeight: FontWeight.w500,
                   ),
@@ -1213,23 +1450,23 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildFormOptions() {
+  Widget _buildFormOptions(ResponsiveConfig config) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Remember Me
+        // Remember me
         GestureDetector(
           onTap: () {
             HapticFeedback.selectionClick();
             setState(() => _rememberMe = !_rememberMe);
           },
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize. min,
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: 24,
-                height: 24,
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
                   gradient: _rememberMe
                       ? const LinearGradient(
@@ -1237,7 +1474,7 @@ class _LoginScreenState extends State<LoginScreen>
                   )
                       : null,
                   color: _rememberMe ?  null : Colors.transparent,
-                  borderRadius: BorderRadius. circular(7),
+                  borderRadius: BorderRadius.circular(7),
                   border: Border.all(
                     color: _rememberMe ?  Colors.transparent : Colors.grey[400]! ,
                     width: 2,
@@ -1254,17 +1491,17 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 child: _rememberMe
                     ? const Icon(
-                  Icons. check_rounded,
+                  Icons.check_rounded,
                   color: Colors.white,
-                  size: 16,
+                  size: 14,
                 )
                     : null,
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 8 * config.fontScale),
               Text(
                 'Remember me',
-                style: GoogleFonts. poppins(
-                  fontSize: 14,
+                style: GoogleFonts.poppins(
+                  fontSize: 12 * config.fontScale,
                   color: Colors.grey[700],
                   fontWeight: FontWeight. w500,
                 ),
@@ -1273,26 +1510,18 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
 
-        // Forgot Password
+        // Forgot password
         TextButton(
-          onPressed: () {
-            HapticFeedback.lightImpact();
-            _showSnackBar(
-              title: 'Reset Password',
-              message: 'Password reset feature coming soon!',
-              isError: false,
-              icon: Icons.lock_reset_rounded,
-            );
-          },
+          onPressed: _navigateToForgotPassword,
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             minimumSize: Size. zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           child: Text(
-            'Forgot Password? ',
-            style: GoogleFonts. poppins(
-              fontSize: 14,
+            'Forgot Password?',
+            style: GoogleFonts.poppins(
+              fontSize: 12 * config. fontScale,
               color: const Color(0xFF059669),
               fontWeight: FontWeight. w600,
             ),
@@ -1302,92 +1531,92 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildLoginButton() {
+  Widget _buildLoginButton(ResponsiveConfig config) {
     return GestureDetector(
       onTapDown: (_) => _buttonController.forward(),
-      onTapUp: (_) => _buttonController. reverse(),
+      onTapUp: (_) => _buttonController.reverse(),
       onTapCancel: () => _buttonController. reverse(),
       child: AnimatedBuilder(
         animation: _buttonController,
         builder: (context, child) {
           final scale = 1.0 - (_buttonController.value * 0.03);
           return Transform.scale(
-          scale: scale,
-          child: Container(
-          width: double.infinity,
-          height: 58,
-          decoration: BoxDecoration(
-          gradient: const LinearGradient(
-          colors: [
-          Color(0xFF047857),
-          Color(0xFF059669),
-          Color(0xFF10b981),
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment. centerRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-          BoxShadow(
-          color: const Color(0xFF10b981).withOpacity(0.4),
-          blurRadius: 20,
-          offset: const Offset(0, 8),
-          ),
-          ],
-          ),
-          child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-          onTap: _isLoading ?  null : _login,
-          borderRadius: BorderRadius. circular(18),
-          child: Center(
-          child: _isLoading
-          ? const SizedBox(
-          width: 26,
-          height: 26,
-          child: CircularProgressIndicator(
-          strokeWidth: 2.5,
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-          ),
-          )
-              : Row(
-          mainAxisAlignment: MainAxisAlignment. center,
-          children: [
-          Text(
-          'Sign In',
-          style: GoogleFonts.poppins(
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-          letterSpacing: 0.5,
-          ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-          color: Colors.white. withOpacity(0.2),
-          borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(
-          Icons.arrow_forward_rounded,
-          color: Colors.white,
-          size: 20,
-          ),
-          ),
-          ],
-          ),
-          ),
-          ),
-          ),
-          ),
+            scale: scale,
+            child: Container(
+              width: double.infinity,
+              height: config.buttonHeight,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF047857),
+                    Color(0xFF059669),
+                    Color(0xFF10b981),
+                  ],
+                  begin: Alignment. centerLeft,
+                  end: Alignment. centerRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF10b981).withOpacity(0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _isLoading ? null : _login,
+                  borderRadius: BorderRadius. circular(18),
+                  child: Center(
+                    child: _isLoading
+                        ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                        : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Sign In',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16 * config.fontScale,
+                            fontWeight: FontWeight. w700,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        SizedBox(width: 10 * config.fontScale),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white. withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white,
+                            size: 18 * config.fontScale,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           );
-          },
+        },
       ),
     );
   }
 
-  Widget _buildDivider() {
+  Widget _buildDivider(ResponsiveConfig config) {
     return Row(
       children: [
         Expanded(
@@ -1404,11 +1633,11 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
         Padding(
-          padding: const EdgeInsets. symmetric(horizontal: 16),
+          padding: EdgeInsets.symmetric(horizontal: 16 * config.fontScale),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
+              color: Colors. grey[100],
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -1416,7 +1645,7 @@ class _LoginScreenState extends State<LoginScreen>
               style: GoogleFonts. poppins(
                 color: Colors.grey[500],
                 fontWeight: FontWeight. w600,
-                fontSize: 12,
+                fontSize: 11 * config.fontScale,
               ),
             ),
           ),
@@ -1428,7 +1657,7 @@ class _LoginScreenState extends State<LoginScreen>
               gradient: LinearGradient(
                 colors: [
                   Colors. grey[300]!,
-                  Colors.transparent,
+                  Colors. transparent,
                 ],
               ),
             ),
@@ -1438,10 +1667,10 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildGoogleSignInButton() {
+  Widget _buildGoogleSignInButton(ResponsiveConfig config) {
     return Container(
       width: double.infinity,
-      height: 54,
+      height: config. buttonHeight - 4,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1451,7 +1680,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors. black.withOpacity(0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1460,43 +1689,27 @@ class _LoginScreenState extends State<LoginScreen>
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            HapticFeedback. lightImpact();
-            _showSnackBar(
-              title: 'Coming Soon',
-              message: 'Google Sign-In will be available in the next update! ',
-              isError: false,
-              icon: Icons.update_rounded,
-            );
-          },
+          onTap: _googleSignIn,
           borderRadius: BorderRadius.circular(16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Center(
-                  child: Text(
-                    'G',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight. w700,
-                      color: const Color(0xFF4285F4),
-                    ),
-                  ),
+              Image.network(
+                'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google. svg',
+                height: 20 * config.fontScale,
+                width: 20 * config.fontScale,
+                errorBuilder: (context, error, stackTrace) => Icon(
+                  Icons.g_mobiledata_rounded,
+                  size: 26 * config.fontScale,
+                  color: Colors.red,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12 * config. fontScale),
               Text(
                 'Continue with Google',
                 style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight. w600,
+                  fontSize: 14 * config.fontScale,
+                  fontWeight: FontWeight.w600,
                   color: const Color(0xFF4a4a4a),
                 ),
               ),
@@ -1507,33 +1720,25 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildRegisterLink() {
+  Widget _buildRegisterLink(ResponsiveConfig config) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           "Don't have an account? ",
           style: GoogleFonts.poppins(
-            fontSize: 14,
+            fontSize: 13 * config.fontScale,
             color: Colors.grey[600],
           ),
         ),
         GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            _showSnackBar(
-              title: 'Register',
-              message: 'Registration feature coming soon!',
-              isError: false,
-              icon: Icons.person_add_rounded,
-            );
-          },
+          onTap: _navigateToRegister,
           child: Text(
             'Sign Up',
             style: GoogleFonts.poppins(
-              fontSize: 14,
+              fontSize: 13 * config. fontScale,
               color: const Color(0xFF059669),
-              fontWeight: FontWeight. w700,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -1541,33 +1746,30 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ==================== DEMO CREDENTIALS ====================
-
-  Widget _buildDemoCredentials() {
+  Widget _buildDemoCredentials(ResponsiveConfig config) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(config.padding * 0.9),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors. white.withOpacity(0.18),
+                Colors. white.withOpacity(0.15),
                 Colors. white.withOpacity(0.08),
               ],
-              begin: Alignment. topLeft,
-              end: Alignment. bottomRight,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
+            borderRadius: BorderRadius. circular(20),
+            border: Border. all(
               color: Colors.white.withOpacity(0.25),
               width: 1.5,
             ),
           ),
           child: Column(
             children: [
-              // Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -1577,97 +1779,49 @@ class _LoginScreenState extends State<LoginScreen>
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius. circular(10),
                     ),
-                    child: const Icon(
-                      Icons.science_rounded,
+                    child: Icon(
+                      Icons. science_rounded,
                       color: Colors.white,
-                      size: 20,
+                      size: 16 * config.fontScale,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10 * config.fontScale),
                   Text(
-                    'Demo Accounts',
+                    'Demo Credentials',
                     style: GoogleFonts.poppins(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
-                      fontSize: 16,
+                      fontSize: 14 * config.fontScale,
                     ),
                   ),
                 ],
               ),
-
-              const SizedBox(height: 8),
-
-              Text(
-                'Tap to auto-fill credentials',
-                style: GoogleFonts. poppins(
-                  color: Colors.white. withOpacity(0.7),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Demo Account Cards
+              SizedBox(height: config.padding * 0.7),
               Row(
                 children: [
                   Expanded(
-                    child: _buildDemoAccountCard(
-                      title: 'Citizen',
-                      subtitle: 'Report waste',
-                      email: 'user@gmail.com',
+                    child: _buildCredentialCard(
+                      type: 'Citizen',
+                      email: AppCredentials. demoUserEmail,
                       icon: Icons.person_rounded,
-                      color: const Color(0xFF3B82F6),
-                      onTap: () => _fillDemoCredentials(asWorker: false),
+                      isActive: _isUserLogin,
+                      config: config,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: config.padding * 0.4),
                   Expanded(
-                    child: _buildDemoAccountCard(
-                      title: 'Worker',
-                      subtitle: 'Clean waste',
-                      email: 'worker@neatnow.work',
-                      icon: Icons.cleaning_services_rounded,
-                      color: const Color(0xFFF59E0B),
-                      onTap: () => _fillDemoCredentials(asWorker: true),
+                    child: _buildCredentialCard(
+                      type: 'Worker',
+                      email: AppCredentials.demoEmployeeEmail,
+                      icon: Icons. cleaning_services_rounded,
+                      isActive: ! _isUserLogin,
+                      config: config,
                     ),
                   ),
                 ],
               ),
-
-              const SizedBox(height: 16),
-
-              // Info Banner
-              Container(
-                padding: const EdgeInsets. symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius. circular(12),
-                  border: Border.all(
-                    color: Colors.white. withOpacity(0.15),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline_rounded,
-                      color: Colors. white. withOpacity(0.8),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Workers use @neatnow. work email domain',
-                        style: GoogleFonts.poppins(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              SizedBox(height: config.padding * 0.7),
+              _buildQuickFillButton(config),
             ],
           ),
         ),
@@ -1675,175 +1829,180 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildDemoAccountCard({
-    required String title,
-    required String subtitle,
+  Widget _buildCredentialCard({
+    required String type,
     required String email,
     required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
+    required bool isActive,
+    required ResponsiveConfig config,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets. all(14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              color.withOpacity(0.25),
-              color. withOpacity(0.15),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius. circular(16),
-          border: Border.all(
-            color: color. withOpacity(0.4),
-            width: 1.5,
-          ),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: EdgeInsets. all(10 * config.fontScale),
+      decoration: BoxDecoration(
+        gradient: isActive
+            ? LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.22),
+            Colors.white.withOpacity(0.12),
+          ],
+        )
+            : null,
+        color: isActive ? null : Colors.white. withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isActive
+              ? Colors.white.withOpacity(0.45)
+              : Colors.white.withOpacity(0.15),
+          width: isActive ? 1.5 : 1,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets. all(5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius. circular(7),
+                ),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 14 * config.fontScale,
+                ),
+              ),
+              SizedBox(width: 6 * config.fontScale),
+              Expanded(
+                child: Text(
+                  type,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11 * config.fontScale,
+                  ),
+                  overflow: TextOverflow. ellipsis,
+                ),
+              ),
+              if (isActive)
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
-                    color: color. withOpacity(0.3),
-                    borderRadius: BorderRadius. circular(10),
+                    color: Colors.white.withOpacity(0.3),
+                    borderRadius: BorderRadius. circular(5),
                   ),
                   child: Icon(
-                    icon,
+                    Icons.check_rounded,
                     color: Colors.white,
-                    size: 18,
+                    size: 10 * config.fontScale,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts. poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        style: GoogleFonts.poppins(
-                          color: Colors.white. withOpacity(0.7),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
+            ],
+          ),
+          SizedBox(height: 6 * config.fontScale),
+          Text(
+            email,
+            style: GoogleFonts.poppins(
+              color: Colors.white. withOpacity(0.85),
+              fontSize: 9 * config.fontScale,
+              fontWeight: FontWeight. w500,
+            ),
+            overflow: TextOverflow. ellipsis,
+          ),
+          SizedBox(height: 2 * config.fontScale),
+          Text(
+            '••••••••',
+            style: GoogleFonts. poppins(
+              color: Colors. white.withOpacity(0.6),
+              fontSize: 10 * config.fontScale,
+              letterSpacing: 2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }  Widget _buildQuickFillButton(ResponsiveConfig config) {
+    return Container(
+      width: double.infinity,
+      height: 46 * config.fontScale,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Colors.white, Color(0xFFF0FDF4)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.white.withOpacity(0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _fillDemoCredentials,
+          borderRadius: BorderRadius. circular(14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10b981). withOpacity(0.15),
+                  borderRadius: BorderRadius. circular(7),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
+                child: Icon(
+                  Icons.flash_on_rounded,
+                  size: 16 * config.fontScale,
+                  color: const Color(0xFF059669),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    email,
-                    style: GoogleFonts.poppins(
-                      color: Colors.white. withOpacity(0.9),
-                      fontSize: 10,
-                      fontWeight: FontWeight. w500,
-                    ),
-                    overflow: TextOverflow. ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '••••••••',
-                    style: GoogleFonts. poppins(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 10,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ],
+              SizedBox(width: 8 * config.fontScale),
+              Text(
+                'Quick Fill ${_isUserLogin ? "Citizen" : "Worker"}',
+                style: GoogleFonts. poppins(
+                  fontWeight: FontWeight. w700,
+                  fontSize: 12 * config.fontScale,
+                  color: const Color(0xFF047857),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              width: double. infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.flash_on_rounded,
-                    color: color,
-                    size: 14,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Quick Fill',
-                    style: GoogleFonts.poppins(
-                      color: color,
-                      fontWeight: FontWeight. w700,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ==================== FOOTER ====================
-
-  Widget _buildFooter() {
+  Widget _buildFooter(ResponsiveConfig config) {
     return Column(
       children: [
         Text(
           'By signing in, you agree to our',
           style: GoogleFonts.poppins(
             color: Colors.white.withOpacity(0.7),
-            fontSize: 12,
+            fontSize: 11 * config.fontScale,
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 4 * config.fontScale),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GestureDetector(
-              onTap: () => HapticFeedback.lightImpact(),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                // Navigate to Terms of Service
+              },
               child: Text(
                 'Terms of Service',
                 style: GoogleFonts.poppins(
                   color: Colors.white,
-                  fontSize: 12,
+                  fontSize: 11 * config.fontScale,
                   fontWeight: FontWeight.w600,
                   decoration: TextDecoration. underline,
-                  decorationColor: Colors. white. withOpacity(0.5),
+                  decorationColor: Colors.white. withOpacity(0.5),
                 ),
               ),
             ),
@@ -1851,16 +2010,19 @@ class _LoginScreenState extends State<LoginScreen>
               '  •  ',
               style: GoogleFonts.poppins(
                 color: Colors.white.withOpacity(0.5),
-                fontSize: 12,
+                fontSize: 11 * config.fontScale,
               ),
             ),
             GestureDetector(
-              onTap: () => HapticFeedback.lightImpact(),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                // Navigate to Privacy Policy
+              },
               child: Text(
                 'Privacy Policy',
-                style: GoogleFonts. poppins(
-                  color: Colors.white,
-                  fontSize: 12,
+                style: GoogleFonts.poppins(
+                  color: Colors. white,
+                  fontSize: 11 * config.fontScale,
                   fontWeight: FontWeight. w600,
                   decoration: TextDecoration.underline,
                   decorationColor: Colors.white.withOpacity(0.5),
@@ -1869,26 +2031,53 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        Text(
-          '© 2024 NeatNow. All rights reserved.',
-          style: GoogleFonts.poppins(
-            color: Colors.white.withOpacity(0.5),
-            fontSize: 11,
-          ),
-        ),
       ],
     );
   }
 }
 
-// ==================== PARTICLE CLASSES ====================
+// ==================== SUPPORTING CLASSES ====================
 
-class _Particle {
-  double x = math.Random(). nextDouble();
+/// Screen size categories for responsive design
+enum ScreenSize { small, mobile, tablet, desktop }
+
+/// Configuration class for responsive values
+class ResponsiveConfig {
+  final double screenWidth;
+  final double screenHeight;
+  final double containerWidth;
+  final double padding;
+  final double logoSize;
+  final double fontScale;
+  final double buttonHeight;
+  final double inputHeight;
+  final bool showFloatingIcons;
+  final bool compactMode;
+  final bool isLandscape;
+  final ScreenSize screenSize;
+
+  const ResponsiveConfig({
+    required this.screenWidth,
+    required this.screenHeight,
+    required this.containerWidth,
+    required this.padding,
+    required this.logoSize,
+    required this.fontScale,
+    required this. buttonHeight,
+    required this.inputHeight,
+    required this.showFloatingIcons,
+    required this.compactMode,
+    required this.isLandscape,
+    required this.screenSize,
+  });
+}
+
+/// Particle class for background animation
+class Particle {
+  double x = math.Random().nextDouble();
   double y = math.Random().nextDouble();
   double speed = 0.015 + math.Random().nextDouble() * 0.06;
-  double size = 1.5 + math.Random().nextDouble() * 2.5;
+  double size = 1.5 + math. Random().nextDouble() * 2.5;
   double opacity = 0.08 + math.Random().nextDouble() * 0.18;
   double twinkleSpeed = 0.5 + math.Random().nextDouble() * 1.2;
 
@@ -1902,13 +2091,14 @@ class _Particle {
   }
 }
 
-class _ParticlePainter extends CustomPainter {
-  final List<_Particle> particles;
+/// Custom painter for particle animation
+class ParticlePainter extends CustomPainter {
+  final List<Particle> particles;
   final double animationValue;
   final double screenWidth;
   final double screenHeight;
 
-  _ParticlePainter(
+  ParticlePainter(
       this.particles,
       this.animationValue,
       this.screenWidth,

@@ -65,6 +65,7 @@ class UserModel {
     );
   }
 
+
   // Convert to Map (for compatibility)
   Map<String, dynamic> toMap() {
     return {
@@ -116,4 +117,6 @@ class UserModel {
       joinedDate: joinedDate ??  this.joinedDate,
     );
   }
+
+
 }

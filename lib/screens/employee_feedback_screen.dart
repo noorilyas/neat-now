@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
-import 'package:neat_now/widgets/employee/responsive_employee_helper.dart';
+import 'package:neat_now/views/employee/responsive_employee_helper.dart';
 
 /// ==================== DESIGN SYSTEM ====================
 class FeedbackDesign {
