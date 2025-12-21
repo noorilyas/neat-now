@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:neat_now/views/employee/responsive_employee_helper.dart';
 import 'dart:math' as math;
-
-import 'package:neat_now/widgets/employee/responsive_employee_helper.dart';
 
 class LogoutDialog extends StatelessWidget {
   const LogoutDialog({super.key});
@@ -12,21 +11,23 @@ class LogoutDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return EmployeeResponsiveHelper(
       builder:  (context, responsive) {
+        final r = responsive;
+
         return Center(
           child: Material(
             color: Colors.transparent,
             child: Container(
               width: math.min(
-                responsive.dialogMaxWidth * 0.9,
-                responsive.effectiveWidth - responsive.padding * 2,
+                r.dialogMaxWidth * 0.9,
+                r.effectiveWidth - r.padding * 2,
               ),
-              padding: EdgeInsets.all(responsive.padding),
+              padding: EdgeInsets.all(r.padding),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(
-                  responsive.extraLargeBorderRadius,
+                  r.extraLargeBorderRadius,
                 ),
-                boxShadow: responsive.elevatedShadow,
+                boxShadow: r.elevatedShadow,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -41,53 +42,53 @@ class LogoutDialog extends StatelessWidget {
                       child:  child,
                     ),
                     child: Container(
-                      padding: EdgeInsets.all(responsive.microPadding),
+                      padding: EdgeInsets.all(r.microPadding),
                       decoration: BoxDecoration(
                         color: Colors.red.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.logout_rounded,
-                        color: Colors.red,
-                        size: responsive. iconSize(32),
+                        color:  Colors.red,
+                        size: r. iconSize(32),
                       ),
                     ),
                   ),
 
-                  SizedBox(height: responsive.microPadding),
+                  SizedBox(height: r.microPadding),
 
                   // Title
                   Text(
                     'Logout',
                     style: GoogleFonts.poppins(
-                      fontSize: responsive.headingS,
+                      fontSize:  r.headingS,
                       fontWeight: FontWeight.bold,
                       color: Colors.grey[900],
                     ),
                   ),
 
-                  SizedBox(height: responsive.microPadding),
+                  SizedBox(height: r.microPadding),
 
                   // Description
-                  if (responsive.showSecondaryText)
+                  if (r.showSecondaryText)
                     Text(
                       'Are you sure you want to logout?  You\'ll need to sign in again.',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
-                        fontSize: responsive. bodyS,
-                        color:  Colors.grey[600],
+                        fontSize: r.bodyS,
+                        color: Colors.grey[600],
                         height: 1.5,
                       ),
                     ),
 
-                  SizedBox(height: responsive.padding),
+                  SizedBox(height:  r.padding),
 
                   // Action Buttons
                   Row(
                     children: [
                       Expanded(
-                        child:  OutlinedButton(
-                          onPressed: () {
+                        child: OutlinedButton(
+                          onPressed:  () {
                             HapticFeedback.lightImpact();
                             Navigator.pop(context, false);
                           },
@@ -96,39 +97,39 @@ class LogoutDialog extends StatelessWidget {
                             side: BorderSide(color: Colors.grey[400]!),
                             shape:  RoundedRectangleBorder(
                               borderRadius:  BorderRadius.circular(
-                                responsive.borderRadius,
+                                r.borderRadius,
                               ),
                             ),
-                            padding: EdgeInsets.symmetric(
-                              vertical: responsive.microPadding,
+                            padding: EdgeInsets. symmetric(
+                              vertical: r.microPadding,
                             ),
                           ),
                           child: Text(
                             'Cancel',
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight. w600,
-                              fontSize:  responsive.bodyS,
+                              fontSize:  r.bodyS,
                             ),
                           ),
                         ),
                       ),
-                      SizedBox(width: responsive. microPadding),
+                      SizedBox(width: r. microPadding),
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
-                            HapticFeedback. mediumImpact();
+                            HapticFeedback.mediumImpact();
                             Navigator.pop(context, true);
                           },
-                          style: ElevatedButton.styleFrom(
+                          style:  ElevatedButton.styleFrom(
                             backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
+                            foregroundColor:  Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
-                                responsive.borderRadius,
+                                r.borderRadius,
                               ),
                             ),
                             padding: EdgeInsets.symmetric(
-                              vertical: responsive.microPadding,
+                              vertical: r. microPadding,
                             ),
                             elevation: 0,
                           ),
@@ -136,7 +137,7 @@ class LogoutDialog extends StatelessWidget {
                             'Logout',
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.w600,
-                              fontSize: responsive.bodyS,
+                              fontSize: r.bodyS,
                             ),
                           ),
                         ),

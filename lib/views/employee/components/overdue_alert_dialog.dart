@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:neat_now/views/employee/responsive_employee_helper.dart';
 import 'dart:math' as math;
-
-import 'package:neat_now/widgets/employee/responsive_employee_helper.dart';
 
 class OverdueAlertDialog extends StatelessWidget {
   final int overdueCount;
@@ -21,30 +20,32 @@ class OverdueAlertDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return EmployeeResponsiveHelper(
       builder: (context, responsive) {
+        final r = responsive;
+
         return Center(
           child: Material(
             color: Colors.transparent,
             child: Container(
               width: math.min(
-                responsive.dialogMaxWidth,
-                responsive.effectiveWidth - responsive.padding * 2,
+                r.dialogMaxWidth,
+                r.effectiveWidth - r.padding * 2,
               ),
               constraints: BoxConstraints(
-                maxHeight: responsive.dialogMaxHeight,
+                maxHeight: r.dialogMaxHeight,
               ),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(
-                  responsive.extraLargeBorderRadius,
+                  r.extraLargeBorderRadius,
                 ),
-                boxShadow: responsive.elevatedShadow,
+                boxShadow: r.elevatedShadow,
               ),
               child: SingleChildScrollView(
                 child:  Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildHeader(responsive),
-                    _buildContent(responsive),
+                    _buildHeader(r),
+                    _buildContent(r),
                   ],
                 ),
               ),
@@ -55,27 +56,27 @@ class OverdueAlertDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(EmployeeResponsiveData responsive) {
+  Widget _buildHeader(EmployeeResponsiveData r) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(responsive.padding),
+      padding: EdgeInsets.all(r.padding),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.red. shade600,
-            Colors.red.shade400,
+            Colors.red.shade600,
+            Colors. red.shade400,
           ],
-          begin:  Alignment.topLeft,
+          begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius:  BorderRadius.vertical(
-          top: Radius. circular(responsive.extraLargeBorderRadius),
+        borderRadius: BorderRadius.vertical(
+          top: Radius. circular(r.extraLargeBorderRadius),
         ),
       ),
       child: Column(
         children: [
           TweenAnimationBuilder<double>(
-            tween: Tween(begin:  0.0, end: 1.0),
+            tween: Tween(begin: 0.0, end: 1.0),
             duration: const Duration(milliseconds: 600),
             curve: Curves.elasticOut,
             builder: (context, value, child) => Transform.scale(
@@ -83,7 +84,7 @@ class OverdueAlertDialog extends StatelessWidget {
               child: child,
             ),
             child: Container(
-              padding: EdgeInsets.all(responsive.padding),
+              padding: EdgeInsets. all(r.padding),
               decoration: BoxDecoration(
                 color: Colors.white. withOpacity(0.2),
                 shape: BoxShape.circle,
@@ -91,22 +92,22 @@ class OverdueAlertDialog extends StatelessWidget {
               child: Icon(
                 Icons.warning_amber_rounded,
                 color: Colors.white,
-                size: responsive.iconSize(40),
+                size: r.iconSize(40),
               ),
             ),
           ),
-          SizedBox(height: responsive.microPadding),
-          if (responsive.showMinimalText)
+          SizedBox(height: r.microPadding),
+          if (r.showMinimalText)
             Text(
-              responsive.adaptiveText(
+              r. adaptiveText(
                 'Overdue Alert! ',
                 nano: '! ',
                 ultraMicro:  '!! ',
                 micro: 'Alert! ',
-                mini: 'Overdue! ',
+                mini: 'Overdue!',
               ),
-              style:  GoogleFonts.poppins(
-                fontSize: responsive.headingS,
+              style: GoogleFonts. poppins(
+                fontSize:  r.headingS,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
@@ -116,51 +117,49 @@ class OverdueAlertDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildContent(EmployeeResponsiveData responsive) {
+  Widget _buildContent(EmployeeResponsiveData r) {
     return Padding(
-      padding: EdgeInsets.all(responsive.padding),
+      padding: EdgeInsets.all(r.padding),
       child: Column(
         children: [
           // Count Display
           Container(
-            padding: EdgeInsets.all(responsive.padding),
+            padding: EdgeInsets.all(r.padding),
             decoration: BoxDecoration(
               color: Colors.red.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(
-                responsive.largeBorderRadius,
-              ),
+              borderRadius: BorderRadius.circular(r.largeBorderRadius),
               border: Border.all(
                 color: Colors.red.withOpacity(0.3),
               ),
             ),
             child:  Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment:  MainAxisAlignment.center,
               children: [
                 Text(
                   '$overdueCount',
                   style: GoogleFonts.poppins(
-                    fontSize: responsive.headingXL,
-                    fontWeight: FontWeight.bold,
+                    fontSize: r.headingXL,
+                    fontWeight:  FontWeight.bold,
                     color: Colors.red,
                   ),
                 ),
-                SizedBox(width: responsive.microPadding),
+                SizedBox(width: r.microPadding),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Task${overdueCount > 1 ? 's' :  ''}',
-                      style:  GoogleFonts.poppins(
-                        fontSize: responsive. bodyM,
+                      'Task${overdueCount > 1 ?  's' : ''}',
+                      style: GoogleFonts.poppins(
+                        fontSize: r.bodyM,
                         fontWeight: FontWeight.w600,
                         color: Colors. red. shade800,
                       ),
                     ),
-                    if (responsive.showSecondaryText)
+                    if (r.showSecondaryText)
                       Text(
                         'Overdue > 2 days',
                         style: GoogleFonts.poppins(
-                          fontSize: responsive.captionM,
+                          fontSize:  r.captionM,
                           color: Colors. red.shade600,
                         ),
                       ),
@@ -170,21 +169,21 @@ class OverdueAlertDialog extends StatelessWidget {
             ),
           ),
 
-          SizedBox(height: responsive.microPadding),
+          SizedBox(height: r.microPadding),
 
           // Description
-          if (responsive.showFullDescriptions)
+          if (r.showFullDescriptions)
             Text(
-              'You have tasks pending for more than 2 days.  Please complete them to maintain your performance rating.',
+              'You have tasks pending for more than 2 days. Please complete them to maintain your performance rating.',
               textAlign: TextAlign.center,
               style: GoogleFonts. poppins(
-                fontSize:  responsive.bodyS,
+                fontSize:  r.bodyS,
                 color: Colors.grey[700],
                 height: 1.5,
               ),
             ),
 
-          SizedBox(height: responsive. padding),
+          SizedBox(height: r.padding),
 
           // Action Buttons
           Row(
@@ -199,29 +198,27 @@ class OverdueAlertDialog extends StatelessWidget {
                     foregroundColor: Colors.grey[700],
                     side: BorderSide(color: Colors.grey[400]! ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        responsive.borderRadius,
-                      ),
+                      borderRadius: BorderRadius.circular(r. borderRadius),
                     ),
                     padding: EdgeInsets.symmetric(
-                      vertical: responsive.microPadding,
+                      vertical: r.microPadding,
                     ),
                   ),
                   child: Text(
-                    responsive.adaptiveText(
+                    r.adaptiveText(
                       'Later',
                       nano: 'X',
                       micro: 'X',
                       mini: 'Later',
                     ),
-                    style: GoogleFonts. poppins(
+                    style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600,
-                      fontSize: responsive.bodyS,
+                      fontSize: r.bodyS,
                     ),
                   ),
                 ),
               ),
-              SizedBox(width:  responsive.microPadding),
+              SizedBox(width: r.microPadding),
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
@@ -233,27 +230,24 @@ class OverdueAlertDialog extends StatelessWidget {
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        responsive.borderRadius,
-                      ),
+                      borderRadius: BorderRadius.circular(r. borderRadius),
                     ),
                     padding: EdgeInsets.symmetric(
-                      vertical: responsive.microPadding,
+                      vertical: r.microPadding,
                     ),
                     elevation: 0,
                   ),
                   child: Row(
-                    mainAxisAlignment:  MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (responsive.showIcons)
+                      if (r.showIcons)
                         Icon(
                           Icons.visibility_rounded,
-                          size: responsive.iconSize(18),
+                          size: r.iconSize(18),
                         ),
-                      if (responsive.showIcons)
-                        SizedBox(width: responsive.nanoPadding),
+                      if (r.showIcons) SizedBox(width: r.nanoPadding),
                       Text(
-                        responsive.adaptiveText(
+                        r.adaptiveText(
                           'View Tasks',
                           nano: '→',
                           micro: 'View',
@@ -261,7 +255,7 @@ class OverdueAlertDialog extends StatelessWidget {
                         ),
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w600,
-                          fontSize: responsive.bodyS,
+                          fontSize: r.bodyS,
                         ),
                       ),
                     ],

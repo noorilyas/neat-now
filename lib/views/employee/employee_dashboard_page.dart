@@ -1,37 +1,47 @@
-import 'package:flutter/material.dart';
+ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:math' as math;
-
-import 'package:neat_now/viewmodels/employee/employee_dashboard_viewmodel.dart';
+import 'package:neat_now/viewmodels/employee/employee_main_dashboard_viewmodel.dart';
 import 'package:neat_now/models/employee/tab_item_model.dart';
-import 'package:neat_now/widgets/employee/responsive_employee_helper.dart';
-import 'package:neat_now/widgets/employee/dashboard_tab.dart';
-import 'package:neat_now/widgets/employee/reports_tab.dart';
-import 'package:neat_now/widgets/employee/map_tab.dart';
-import 'package:neat_now/widgets/employee/analytics_tab.dart';
-import 'package:neat_now/widgets/employee/profile_tab.dart';
-import 'package:neat_now/widgets/employee/leaderboard_page.dart';
-import 'package:neat_now/widgets/employee/notifications_page.dart';
-import 'package:neat_now/widgets/employee/notification_overlay.dart';
-import 'package:neat_now/views/employee/components/employee_app_bar.dart';
-import 'package:neat_now/views/employee/components/employee_side_nav.dart';
-import 'package:neat_now/views/employee/components/employee_bottom_nav.dart';
+import 'package:neat_now/views/employee/profile_tab.dart';
+import 'package:neat_now/views/employee/reports_tab.dart';
+import 'package:neat_now/views/employee/responsive_employee_helper.dart';
+
+import 'package:neat_now/views/employee/notifications_page.dart';
+import 'package:neat_now/views/employee/notification_overlay.dart';
+import 'package:neat_now/views/employee/components/mobile_app_bar.dart';
+import 'package:neat_now/views/employee/components/mobile_bottom_nav.dart';
+import 'package:neat_now/views/employee/components/desktop_side_nav.dart';
+import 'package:neat_now/views/employee/components/overdue_banner.dart';
 import 'package:neat_now/views/employee/components/overdue_alert_dialog.dart';
 import 'package:neat_now/views/employee/components/logout_dialog.dart';
+import 'dart:math' as math;
 
-class EmployeeDashboardPage extends StatefulWidget {
-  const EmployeeDashboardPage({super.key});
+import 'analytics_tab.dart';
+import 'employee_dashboard_tab.dart';
+import 'leaderboard_page.dart';
+import 'map_tab.dart';
 
-  @override
-  State<EmployeeDashboardPage> createState() => _EmployeeDashboardPageState();
+/// Color System
+class AppColors {
+  static const Color primaryGreen = Color(0xFF2AC2AB);
+  static const Color success = Color(0xFF2AC2AB);
+  static const Color error = Color(0xFFFF6B6B);
 }
 
-class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
+/// Employee Dashboard Page (MVVM)
+class EmployeeDashboard extends StatefulWidget {
+  final Map<String, dynamic>? employeeData;
+
+  const EmployeeDashboard({super.key, this.employeeData});
+
+  @override
+  State<EmployeeDashboard> createState() => _EmployeeDashboardState();
+}
+
+class _EmployeeDashboardState extends State<EmployeeDashboard>
     with TickerProviderStateMixin {
-  late EmployeeDashboardViewModel _viewModel;
-  late PageController _pageController;
-  late ScrollController _scrollController;
+  late EmployeeMainDashboardViewModel _viewModel;
 
   // Animation Controllers
   late AnimationController _fadeController;
@@ -41,6 +51,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
   late AnimationController _rotateController;
   late AnimationController _fabController;
   late AnimationController _pulseController;
+  late AnimationController _alertController;
   late AnimationController _logoController;
 
   // Animations
@@ -52,25 +63,43 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
   late Animation<double> _rotateAnimation;
   late Animation<double> _fabAnimation;
   late Animation<double> _pulseAnimation;
+  late Animation<double> _alertAnimation;
   late Animation<double> _logoAnimation;
+
+  late PageController _pageController;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
 
-    _viewModel = EmployeeDashboardViewModel();
+    // Initialize ViewModel
+    _viewModel = EmployeeMainDashboardViewModel();
     _viewModel.addListener(_onViewModelChanged);
 
-    _pageController = PageController();
-    _scrollController = ScrollController();
-
+    _pageController = PageController(initialPage: _viewModel.selectedIndex);
     _initializeAnimations();
     _setupScrollListener();
-    _checkForOverdueDialog();
+
+    // Check for overdue dialog after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForOverdueDialog();
+    });
   }
 
   void _onViewModelChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {});
+
+      // Control pulse animation for overdue alerts
+      if (_viewModel.hasOverdueAlerts && ! _pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+        _alertController.repeat(reverse: true);
+      } else if (!_viewModel.hasOverdueAlerts && _pulseController.isAnimating) {
+        _pulseController.stop();
+        _alertController.stop();
+      }
+    }
   }
 
   void _initializeAnimations() {
@@ -104,7 +133,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
     _shimmerController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
-    )..repeat();
+    ).. repeat();
     _shimmerAnimation = Tween<double>(begin: -2.0, end: 2.0).animate(
       CurvedAnimation(
         parent: _shimmerController,
@@ -156,6 +185,17 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
       ),
     );
 
+    _alertController = AnimationController(
+      duration:  const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    _alertAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _alertController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
     _logoController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -170,12 +210,12 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
   }
 
   void _setupScrollListener() {
-    _scrollController.addListener(() {
+    _scrollController. addListener(() {
       final shouldShowFAB = _scrollController.offset > 100;
       _viewModel.setFABVisibility(shouldShowFAB);
 
       if (shouldShowFAB) {
-        _fabController.forward();
+        _fabController. forward();
       } else {
         _fabController. reverse();
       }
@@ -183,17 +223,14 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
   }
 
   void _checkForOverdueDialog() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_viewModel.hasOverdueAlerts && !_viewModel.hasShownOverdueDialog) {
-        _viewModel. markOverdueDialogShown();
-        _pulseController.repeat(reverse: true);
-        _showOverdueDialog();
-      }
-    });
+    if (_viewModel.hasOverdueAlerts && !_viewModel.hasShownOverdueDialog) {
+      _viewModel.markOverdueDialogShown();
+      _showOverdueAlert();
+    }
   }
 
-  void _showOverdueDialog() {
-    if (!mounted) return;
+  void _showOverdueAlert() {
+    if (! mounted) return;
 
     HapticFeedback.heavyImpact();
     showGeneralDialog(
@@ -201,7 +238,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
       barrierDismissible: false,
       barrierLabel: 'Overdue Alert',
       barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds:  400),
+      transitionDuration:  const Duration(milliseconds: 400),
       pageBuilder: (context, animation, secondaryAnimation) {
         return OverdueAlertDialog(
           overdueCount: _viewModel.overdueCount,
@@ -216,7 +253,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
         return ScaleTransition(
           scale: CurvedAnimation(
             parent:  animation,
-            curve: Curves. elasticOut,
+            curve: Curves.elasticOut,
           ),
           child: FadeTransition(
             opacity:  animation,
@@ -272,13 +309,13 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         return ScaleTransition(
-          scale:  CurvedAnimation(
+          scale: CurvedAnimation(
             parent: animation,
-            curve:  Curves.elasticOut,
+            curve: Curves.elasticOut,
           ),
           child: FadeTransition(
             opacity: animation,
-            child: child,
+            child:  child,
           ),
         );
       },
@@ -295,8 +332,33 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
     }
   }
 
+  Future<void> _updateReportStatus(
+      int reportId,
+      String status, {
+        String?  imagePath,
+        double? latitude,
+        double? longitude,
+        String? locationAddress,
+      }) async {
+    final success = await _viewModel.updateReportStatus(
+      reportId,
+      status,
+      imagePath: imagePath,
+      latitude: latitude,
+      longitude: longitude,
+      locationAddress: locationAddress,
+    );
+
+    _showSnackBar(
+      success
+          ? (status == 'resolved' ? 'Report resolved!' : 'Status updated')
+          : 'Failed to update',
+      isSuccess: success,
+    );
+  }
+
   void _showSnackBar(String message, {bool isSuccess = true}) {
-    if (!mounted) return;
+    if (! mounted) return;
 
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -304,8 +366,8 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
         content: Row(
           children: [
             TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.0, end: 1.0),
-              duration: const Duration(milliseconds:  400),
+              tween: Tween(begin:  0.0, end: 1.0),
+              duration: const Duration(milliseconds: 400),
               curve: Curves.elasticOut,
               builder: (context, value, child) {
                 return Transform.scale(scale: value, child: child);
@@ -318,7 +380,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
                 ),
                 child: Icon(
                   isSuccess ? Icons.check_rounded : Icons.error_rounded,
-                  color: Colors. white,
+                  color: Colors.white,
                   size: 18,
                 ),
               ),
@@ -327,17 +389,16 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.poppins(
+                style:  GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-        backgroundColor: isSuccess
-            ? const Color(0xFF2AC2AB)
-            : const Color(0xFFFF6B6B),
+        backgroundColor: isSuccess ? AppColors.success : AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius:  BorderRadius.circular(12),
@@ -349,17 +410,13 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
     );
   }
 
-  void _showNotificationsPage() {
+  void _showNotificationsPage(EmployeeResponsiveData responsive) {
     HapticFeedback.lightImpact();
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) {
-          return EmployeeResponsiveHelper(
-            builder: (context, responsive) => NotificationsPage(
-              responsive: responsive,
-            ),
-          );
+          return NotificationsPage(responsive: responsive);
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
@@ -369,7 +426,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
             ).animate(
               CurvedAnimation(
                 parent: animation,
-                curve: Curves.easeOutCubic,
+                curve:  Curves.easeOutCubic,
               ),
             ),
             child: FadeTransition(
@@ -388,31 +445,37 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
     _scrollController.animateTo(
       0,
       duration: const Duration(milliseconds: 500),
-      curve: Curves.easeOutCubic,
+      curve: Curves. easeOutCubic,
     );
+  }
+
+  void _onLogoTap() {
+    HapticFeedback.lightImpact();
+    _bounceController.forward(from: 0.0);
   }
 
   @override
   void dispose() {
     _viewModel.removeListener(_onViewModelChanged);
     _viewModel.dispose();
-    _pageController.dispose();
-    _scrollController.dispose();
     _fadeController.dispose();
     _pageTransitionController.dispose();
     _shimmerController.dispose();
     _bounceController.dispose();
     _rotateController.dispose();
     _fabController.dispose();
-    _pulseController. dispose();
-    _logoController. dispose();
+    _pulseController.dispose();
+    _alertController.dispose();
+    _logoController.dispose();
+    _pageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return EmployeeResponsiveHelper(
-      builder:  (context, responsive) {
+      builder: (context, responsive) {
         return NotificationOverlay(
           responsive: responsive,
           child: AnimatedContainer(
@@ -460,17 +523,19 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
             },
             child: Container(
               width: responsive.avatarSizeLarge,
-              height: responsive.avatarSizeLarge,
+              height: responsive. avatarSizeLarge,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF2AC2AB), Color(0xFF1FA896)],
+                  colors: [AppColors.primaryGreen, Color(0xFF1FA896)],
                   begin:  Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius:  BorderRadius.circular(responsive.largeBorderRadius),
+                borderRadius:  BorderRadius.circular(
+                  responsive.largeBorderRadius,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF2AC2AB).withOpacity(0.3),
+                    color: AppColors.primaryGreen.withOpacity(0.3),
                     blurRadius:  12,
                     offset: const Offset(0, 4),
                   ),
@@ -485,37 +550,12 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
           ),
           SizedBox(height: responsive.padding),
           if (responsive.showMinimalText)
-            AnimatedBuilder(
-              animation: _shimmerAnimation,
-              builder: (context, child) {
-                return ShaderMask(
-                  shaderCallback: (bounds) {
-                    return LinearGradient(
-                      begin: Alignment(-1.0 + _shimmerAnimation.value, 0.0),
-                      end: Alignment(_shimmerAnimation.value, 0.0),
-                      colors: [
-                        Colors.grey[400]!,
-                        Colors. grey[200]!,
-                        Colors. grey[400]!,
-                      ],
-                    ).createShader(bounds);
-                  },
-                  child: Text(
-                    responsive.adaptiveText(
-                      'Loading your dashboard...',
-                      nano: '.. .',
-                      ultraMicro: '...',
-                      micro: 'Loading',
-                      mini: 'Loading.. .',
-                    ),
-                    style: GoogleFonts.poppins(
-                      fontSize: responsive.bodyS,
-                      fontWeight:  FontWeight.w500,
-                      color: Colors.white,
-                    ),
-                  ),
-                );
-              },
+            Text(
+              'Loading dashboard...',
+              style: GoogleFonts.poppins(
+                fontSize: responsive.bodyS,
+                color: Colors.grey[600],
+              ),
             ),
         ],
       ),
@@ -529,7 +569,7 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
         onPressed: _scrollToTop,
         backgroundColor: _viewModel.currentColor,
         elevation: 8,
-        child:  Icon(
+        child: Icon(
           Icons.keyboard_arrow_up_rounded,
           color: Colors.white,
           size: responsive.iconSize(20),
@@ -548,308 +588,186 @@ class _EmployeeDashboardPageState extends State<EmployeeDashboardPage>
     }
   }
 
-// Layout implementations will follow in next part...
-}
-// ==================== MOBILE LAYOUT ====================
-Widget _buildMobileLayout(EmployeeResponsiveData responsive) {
-  return Column(
-    children: [
-      EmployeeAppBar(
-        viewModel: _viewModel,
-        responsive: responsive,
-        onLogoTap: () {
-          HapticFeedback.lightImpact();
-          _bounceController.forward(from: 0.0);
-        },
-        onRefresh: _handleRefresh,
-        onNotificationsTap: _showNotificationsPage,
-        bounceAnimation: _bounceAnimation,
-        rotateAnimation: _rotateAnimation,
-        pulseAnimation: _pulseAnimation,
-        logoAnimation: _logoAnimation,
-      ),
-      if (_viewModel.hasOverdueAlerts)
-        _buildOverdueBanner(responsive),
-      Expanded(
-        child: AnimatedBuilder(
-          animation: _pageTransitionController,
-          builder: (context, child) {
-            return Transform.translate(
-              offset: Offset(_slideAnimation.value * 50, 0),
-              child:  Transform.scale(
-                scale: _scaleAnimation.value,
-                child: child,
-              ),
-            );
-          },
-          child: PageView(
-            controller: _pageController,
-            onPageChanged: _onPageChanged,
-            physics: const BouncingScrollPhysics(),
-            children: _buildTabContent(responsive),
-          ),
-        ),
-      ),
-      if (responsive.showBottomNav)
-        EmployeeBottomNav(
+  Widget _buildMobileLayout(EmployeeResponsiveData responsive) {
+    return Column(
+      children: [
+        MobileAppBar(
           viewModel: _viewModel,
           responsive: responsive,
+          onLogoTap: _onLogoTap,
+          onRefresh: _handleRefresh,
+          onNotificationsTap: () => _showNotificationsPage(responsive),
+          bounceAnimation: _bounceAnimation,
+          rotateAnimation: _rotateAnimation,
+          pulseAnimation: _pulseAnimation,
+          logoAnimation: _logoAnimation,
+        ),
+        if (_viewModel.hasOverdueAlerts)
+          OverdueBanner(
+            overdueCount: _viewModel.overdueCount,
+            responsive: responsive,
+            alertAnimation: _alertAnimation,
+            onViewTasks: () => _onTabSelected(1),
+          ),
+        Expanded(
+          child:  AnimatedBuilder(
+            animation: _pageTransitionController,
+            builder:  (context, child) {
+              return Transform.translate(
+                offset: Offset(_slideAnimation.value * 50, 0),
+                child:  Transform.scale(
+                  scale: _scaleAnimation. value,
+                  child: child,
+                ),
+              );
+            },
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: _onPageChanged,
+              physics: const BouncingScrollPhysics(),
+              children: _buildTabContent(responsive),
+            ),
+          ),
+        ),
+        if (responsive.showBottomNav)
+          MobileBottomNav(
+            viewModel: _viewModel,
+            responsive: responsive,
+            onTabSelected: _onTabSelected,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout(EmployeeResponsiveData responsive) {
+    return Row(
+      children: [
+        DesktopSideNav(
+          viewModel:  _viewModel,
+          responsive:  responsive,
+          isExpanded: false,
           onTabSelected: _onTabSelected,
+          onToggle: () => _viewModel.toggleSideNav(),
+          onLogout: _handleLogout,
+          bounceAnimation: _bounceAnimation,
+          pulseAnimation: _pulseAnimation,
+          logoAnimation: _logoAnimation,
         ),
-    ],
-  );
-}
-
-// ==================== TABLET LAYOUT ====================
-Widget _buildTabletLayout(EmployeeResponsiveData responsive) {
-  return Row(
-    children: [
-      EmployeeSideNav(
-        viewModel: _viewModel,
-        responsive: responsive,
-        isExpanded: false,
-        onTabSelected: _onTabSelected,
-        onToggle: () => _viewModel.toggleSideNav(),
-        onLogout: _handleLogout,
-        bounceAnimation: _bounceAnimation,
-        pulseAnimation: _pulseAnimation,
-        logoAnimation: _logoAnimation,
-      ),
-      Container(
-        width: 1,
-        color: Colors.grey. withOpacity(0.12),
-      ),
-      Expanded(
-        child: Column(
-          children: [
-            EmployeeAppBar(
-              viewModel: _viewModel,
-              responsive: responsive,
-              onLogoTap: () {
-                HapticFeedback.lightImpact();
-                _bounceController.forward(from: 0.0);
-              },
-              onRefresh:  _handleRefresh,
-              onNotificationsTap: _showNotificationsPage,
-              bounceAnimation: _bounceAnimation,
-              rotateAnimation: _rotateAnimation,
-              pulseAnimation:  _pulseAnimation,
-              logoAnimation: _logoAnimation,
-              showLogo: false,
-            ),
-            if (_viewModel.hasOverdueAlerts)
-              _buildOverdueBanner(responsive),
-            Expanded(
-              child: _buildContentArea(responsive),
-            ),
-          ],
+        Container(width: 1, color: Colors.grey. withOpacity(0.12)),
+        Expanded(
+          child: Column(
+            children: [
+              MobileAppBar(
+                viewModel: _viewModel,
+                responsive: responsive,
+                onLogoTap: _onLogoTap,
+                onRefresh: _handleRefresh,
+                onNotificationsTap: () => _showNotificationsPage(responsive),
+                bounceAnimation: _bounceAnimation,
+                rotateAnimation: _rotateAnimation,
+                pulseAnimation: _pulseAnimation,
+                logoAnimation: _logoAnimation,
+                showLogo: false,
+              ),
+              if (_viewModel.hasOverdueAlerts)
+                OverdueBanner(
+                  overdueCount: _viewModel.overdueCount,
+                  responsive: responsive,
+                  alertAnimation: _alertAnimation,
+                  onViewTasks: () => _onTabSelected(1),
+                ),
+              Expanded(child: _buildContentArea(responsive)),
+            ],
+          ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
-// ==================== DESKTOP LAYOUT ====================
-Widget _buildDesktopLayout(EmployeeResponsiveData responsive) {
-  return Row(
-    children: [
-      EmployeeSideNav(
-        viewModel: _viewModel,
-        responsive: responsive,
-        isExpanded: _viewModel.isSideNavExpanded,
-        onTabSelected: _onTabSelected,
-        onToggle: () => _viewModel.toggleSideNav(),
-        onLogout: _handleLogout,
-        bounceAnimation: _bounceAnimation,
-        pulseAnimation: _pulseAnimation,
-        logoAnimation: _logoAnimation,
-      ),
-      Container(
-        width: 1,
-        color: Colors.grey. withOpacity(0.12),
-      ),
-      Expanded(
-        child: Column(
-          children: [
-            EmployeeAppBar(
-              viewModel:  _viewModel,
-              responsive:  responsive,
-              onLogoTap: () {
-                HapticFeedback.lightImpact();
-                _bounceController.forward(from: 0.0);
-              },
-              onRefresh: _handleRefresh,
-              onNotificationsTap: _showNotificationsPage,
-              bounceAnimation: _bounceAnimation,
-              rotateAnimation: _rotateAnimation,
-              pulseAnimation: _pulseAnimation,
-              logoAnimation: _logoAnimation,
-              showLogo: false,
-              isDesktop: true,
-            ),
-            if (_viewModel.hasOverdueAlerts)
-              _buildOverdueBanner(responsive),
-            Expanded(
-              child:  Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: responsive.maxContentWidth,
-                  ),
-                  child:  Padding(
-                    padding: EdgeInsets.all(responsive.padding),
-                    child: _buildContentArea(responsive),
+  Widget _buildDesktopLayout(EmployeeResponsiveData responsive) {
+    return Row(
+      children: [
+        DesktopSideNav(
+          viewModel: _viewModel,
+          responsive: responsive,
+          isExpanded: _viewModel.isSideNavExpanded,
+          onTabSelected: _onTabSelected,
+          onToggle: () => _viewModel.toggleSideNav(),
+          onLogout: _handleLogout,
+          bounceAnimation: _bounceAnimation,
+          pulseAnimation: _pulseAnimation,
+          logoAnimation: _logoAnimation,
+        ),
+        Container(width: 1, color:  Colors.grey.withOpacity(0.12)),
+        Expanded(
+          child: Column(
+            children: [
+              MobileAppBar(
+                viewModel:  _viewModel,
+                responsive:  responsive,
+                onLogoTap: _onLogoTap,
+                onRefresh: _handleRefresh,
+                onNotificationsTap: () => _showNotificationsPage(responsive),
+                bounceAnimation: _bounceAnimation,
+                rotateAnimation:  _rotateAnimation,
+                pulseAnimation: _pulseAnimation,
+                logoAnimation: _logoAnimation,
+                showLogo: false,
+                isDesktop: true,
+              ),
+              if (_viewModel.hasOverdueAlerts)
+                OverdueBanner(
+                  overdueCount: _viewModel.overdueCount,
+                  responsive:  responsive,
+                  alertAnimation:  _alertAnimation,
+                  onViewTasks: () => _onTabSelected(1),
+                ),
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: responsive.maxContentWidth,
+                    ),
+                    child:  Padding(
+                      padding: EdgeInsets.all(responsive.padding),
+                      child: _buildContentArea(responsive),
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
-}
-
-// ==================== OVERDUE BANNER ====================
-Widget _buildOverdueBanner(EmployeeResponsiveData responsive) {
-  return AnimatedBuilder(
-    animation: _pulseAnimation,
-    builder: (context, child) {
-      return Container(
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(
-          horizontal: responsive.padding,
-          vertical: responsive.microPadding,
-        ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.red. shade600,
-              Colors.red.shade400. withOpacity(
-                0.85 + (_pulseAnimation.value - 1) * 2,
               ),
             ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color:  Colors.red.withOpacity(0.4),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: Row(
-          children: [
-            if (responsive.showStatusIndicators)
-              Container(
-                padding: EdgeInsets.all(responsive.nanoPadding),
-                decoration: BoxDecoration(
-                  color: Colors.white. withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(
-                    responsive.smallBorderRadius,
-                  ),
-                ),
-                child: Icon(
-                  Icons. warning_amber_rounded,
-                  color: Colors.white,
-                  size: responsive. iconSize(16),
-                ),
-              ),
-            SizedBox(width: responsive.microPadding),
-            Expanded(
-              child: Column(
-                crossAxisAlignment:  CrossAxisAlignment.start,
-                children: [
-                  if (responsive.showMinimalText)
-                    Text(
-                      responsive.adaptiveText(
-                        'Overdue Alert! ',
-                        nano: '! ',
-                        ultraMicro: '!! ',
-                        micro: 'Alert',
-                        mini: 'Overdue! ',
-                      ),
-                      style: GoogleFonts.poppins(
-                        fontSize:  responsive.captionL,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  if (responsive.showSecondaryText)
-                    Text(
-                      '${_viewModel.overdueCount} task${_viewModel.overdueCount > 1 ? 's' :  ''} > 2 days',
-                      style: GoogleFonts.poppins(
-                        fontSize: responsive.captionS,
-                        color: Colors.white. withOpacity(0.95),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (responsive.showAppBarActions)
-              Material(
-                color: Colors. white,
-                borderRadius: BorderRadius.circular(
-                  responsive.smallBorderRadius,
-                ),
-                child: InkWell(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    _onTabSelected(1);
-                  },
-                  borderRadius: BorderRadius.circular(
-                    responsive.smallBorderRadius,
-                  ),
-                  child:  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: responsive.microPadding,
-                      vertical: responsive.nanoPadding,
-                    ),
-                    child: Text(
-                      'View',
-                      style: GoogleFonts.poppins(
-                        fontSize: responsive.captionS,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      );
-    },
-  );
-}
+      ],
+    );
+  }
 
-// ==================== CONTENT AREA ====================
-Widget _buildContentArea(EmployeeResponsiveData responsive) {
-  return AnimatedBuilder(
-    animation: _pageTransitionController,
-    builder:  (context, child) {
-      return Transform.scale(
-        scale: _scaleAnimation.value,
-        child: child,
-      );
-    },
-    child: IndexedStack(
-      index: _viewModel.selectedIndex,
-      children: _buildTabContent(responsive),
-    ),
-  );
-}
+  Widget _buildContentArea(EmployeeResponsiveData responsive) {
+    return AnimatedBuilder(
+      animation: _pageTransitionController,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: child,
+        );
+      },
+      child: IndexedStack(
+        index: _viewModel.selectedIndex,
+        children: _buildTabContent(responsive),
+      ),
+    );
+  }
 
-// ==================== TAB CONTENT ====================
-List<Widget> _buildTabContent(EmployeeResponsiveData responsive) {
-  return [
+  List<Widget> _buildTabContent(EmployeeResponsiveData responsive) {
+    return [
     // Dashboard Tab
     EmployeeDashboardTab(
-      stats: _viewModel.stats,
-      acceptedReports: _viewModel.acceptedReports,
-      leaderboard: _viewModel.leaderboard,
+      statsFuture: _viewModel.statsFuture! ,
+      acceptedReportsFuture: _viewModel.acceptedReportsFuture,
+      leaderboardFuture: _viewModel.leaderboardFuture,
       onNavigateToTab: _onTabSelected,
       onRefresh: _handleRefresh,
-      user: _viewModel.user,
+      employeeData: _viewModel.employeeData,
       isDemoMode: _viewModel.isDemoMode,
       overdueCount: _viewModel.overdueCount,
       responsive: responsive,
@@ -857,78 +775,46 @@ List<Widget> _buildTabContent(EmployeeResponsiveData responsive) {
 
     // Reports Tab
     EmployeeReportsTab(
-      reports: _viewModel.reports,
-      onUpdateStatus: (reportId, status, {imagePath, latitude, longitude, locationAddress}) async {
-        final success = await _viewModel.updateReportStatus(
-          reportId,
-          status,
-          imagePath:  imagePath,
-          latitude: latitude,
-          longitude: longitude,
-          locationAddress: locationAddress,
-        );
-
-        _showSnackBar(
-          success
-              ? (status == 'resolved' ? 'Report resolved!' : 'Status updated')
-              : 'Failed to update',
-          isSuccess: success,
-        );
-      },
-      onRefresh: _handleRefresh,
-      overdueCount: _viewModel.overdueCount,
-      responsive: responsive,
+    reportsFuture: _viewModel. reportsFuture! ,
+    onUpdateStatus: _updateReportStatus,
+    onRefresh: _handleRefresh,
+    overdueCount: _viewModel.overdueCount,
+    responsive: responsive,
     ),
 
     // Map Tab
     BinsMapTab(
-      reports: _viewModel.reports,
-      onUpdateStatus: (reportId, status, {imagePath, latitude, longitude, locationAddress}) async {
-        final success = await _viewModel.updateReportStatus(
-          reportId,
-          status,
-          imagePath: imagePath,
-          latitude: latitude,
-          longitude: longitude,
-          locationAddress: locationAddress,
-        );
-
-        _showSnackBar(
-          success ?  'Status updated' : 'Failed to update',
-          isSuccess: success,
-        );
-      },
-      onRefresh: _handleRefresh,
-      responsive: responsive,
+    reportsFuture: _viewModel. reportsFuture!,
+    onUpdateStatus: _updateReportStatus,
+    onRefresh:  _handleRefresh,
+    responsive: responsive,
     ),
 
     // Analytics Tab
     EmployeeAnalyticsTab(
-      analytics: _viewModel.analytics,
-      reports: _viewModel.reports,
-      onRefresh: _handleRefresh,
-      responsive: responsive,
+    analyticsFuture: _viewModel.analyticsFuture!,
+    reportsFuture: _viewModel. reportsFuture!,
+    onRefresh: _handleRefresh,
+    responsive: responsive,
     ),
 
-    // Leaderboard Tab
+    // Leaderboard
     LeaderboardPage(
-      leaderboard: _viewModel.leaderboard,
-      currentUserId: _viewModel.user?. id ??  '',
-      onRefresh: _handleRefresh,
-      responsive: responsive,
+    leaderboardFuture:  _viewModel.safeLeaderboardFuture,
+    currentUserId: _viewModel.user?. id ?? '',
+    onRefresh: _handleRefresh,
+    responsive: responsive,
     ),
 
     // Profile Tab
     EmployeeProfileTab(
-      user: _viewModel.user,
-      stats: _viewModel.stats,
-      isDemoMode: _viewModel.isDemoMode,
-      onLogout: _handleLogout,
-      onProfileUpdate: () async {
-        await _viewModel.refresh();
-      },
-      responsive: responsive,
+    userData: _viewModel.employeeData,
+    employeeStats: _viewModel.employeeStats,
+    isDemoMode: _viewModel.isDemoMode,
+    onLogout: _handleLogout,
+    onProfileUpdate: _handleRefresh,
+    responsive: responsive,
     ),
-  ];
-}
+    ];
+  }
 }
