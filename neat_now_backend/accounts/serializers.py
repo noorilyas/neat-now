@@ -1,0 +1,175 @@
+from rest_framework import serializers
+from django.contrib.auth.password_validation import validate_password
+from .models import Account
+import re
+
+
+class AccountRegistrationSerializer(serializers.ModelSerializer):
+    """Serializer for Citizen registration"""
+    
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password],
+        style={'input_type': 'password'}
+    )
+    password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'}
+    )
+    
+    class Meta:
+        model = Account
+        fields = ['email', 'password', 'password_confirm', 'name', 'phone_number', 'profile_image']
+        extra_kwargs = {
+            'email': {'required': True},
+            'name': {'required': True},
+        }
+    
+    def validate_email(self, value):
+        """Check if email already exists"""
+        if Account.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Email already registered.")
+        return value.lower()
+    
+    def validate_phone_number(self, value):
+        """Validate phone number format"""
+        if value:
+            # Remove any spaces or dashes
+            value = value.replace(' ', '').replace('-', '')
+            # Check format +92XXXXXXXXXX
+            if not re.match(r'^\+92\d{10}$', value):
+                raise serializers.ValidationError(
+                    "Phone number must be in format +92XXXXXXXXXX"
+                )
+        return value
+    
+    def validate(self, attrs):
+        """Validate password confirmation"""
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({
+                'password_confirm': "Passwords do not match."
+            })
+        return attrs
+    
+    def create(self, validated_data):
+        """Create new Citizen account"""
+        validated_data.pop('password_confirm')
+        password = validated_data.pop('password')
+        
+        account = Account.objects.create(
+            email=validated_data['email'],
+            name=validated_data['name'],
+            phone_number=validated_data.get('phone_number'),
+            profile_image=validated_data.get('profile_image'),
+            role='Citizen',
+            email_verified=False,
+        )
+        account.set_password(password)
+        account.save()
+        
+        return account
+
+
+class AccountLoginSerializer(serializers.Serializer):
+    """Serializer for email/password login"""
+    
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(
+        required=True,
+        write_only=True,
+        style={'input_type': 'password'}
+    )
+    
+    def validate(self, attrs):
+        """Validate email and password"""
+        email = attrs.get('email', '').lower()
+        password = attrs.get('password')
+        
+        if not email or not password:
+            raise serializers.ValidationError({
+                'error': 'Email and password are required.'
+            })
+        
+        try:
+            account = Account.objects.get(email=email)
+        except Account.DoesNotExist:
+            raise serializers.ValidationError({
+                'error': 'Invalid email or password.'
+            })
+        
+        # Check if email is verified
+        if not account.email_verified:
+            raise serializers.ValidationError({
+                'error': 'Email not verified. Please verify your email first.'
+            })
+        
+        # Check password
+        if not account.check_password(password):
+            raise serializers.ValidationError({
+                'error': 'Invalid email or password.'
+            })
+        
+        attrs['account'] = account
+        return attrs
+
+
+class EmailVerificationSerializer(serializers.Serializer):
+    """Serializer for email verification"""
+    
+    token = serializers.CharField(required=True, max_length=255)
+
+
+class ResendVerificationSerializer(serializers.Serializer):
+    """Serializer for resending verification email"""
+    
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """Check if email exists and is not verified"""
+        try:
+            account = Account.objects.get(email=value.lower())
+            if account.email_verified:
+                raise serializers.ValidationError("Email is already verified.")
+        except Account.DoesNotExist:
+            raise serializers.ValidationError("Email not found.")
+        return value.lower()
+
+
+class AccountProfileSerializer(serializers.ModelSerializer):
+    """Serializer for account profile (read/update)"""
+    
+    class Meta:
+        model = Account
+        fields = ['account_id', 'email', 'name', 'phone_number', 'profile_image', 
+                  'role', 'email_verified', 'created_at']
+        read_only_fields = ['account_id', 'email', 'role', 'email_verified', 'created_at']
+    
+    def validate_phone_number(self, value):
+        """Validate phone number format"""
+        if value:
+            # Remove any spaces or dashes
+            value = value.replace(' ', '').replace('-', '')
+            # Check format +92XXXXXXXXXX
+            if not re.match(r'^\+92\d{10}$', value):
+                raise serializers.ValidationError(
+                    "Phone number must be in format +92XXXXXXXXXX"
+                )
+        return value
+    
+    def validate_profile_image(self, value):
+        """Validate profile image size and type"""
+        if value:
+            # Check file size (5MB max)
+            if value.size > 5 * 1024 * 1024:
+                raise serializers.ValidationError(
+                    "Image file too large. Maximum size is 5MB."
+                )
+            # Check file type
+            if not value.content_type.startswith('image/'):
+                raise serializers.ValidationError(
+                    "File must be an image."
+                )
+        return value
+
