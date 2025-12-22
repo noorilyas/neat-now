@@ -75,3 +75,13 @@ class Account(models.Model):
     def has_password(self):
         """Check if account has a password set (not Google-only account)"""
         return bool(self.password_hash and self.password_hash != '')
+    
+    @property
+    def is_authenticated(self):
+        """Required for Django REST Framework authentication"""
+        return True
+    
+    @property
+    def is_anonymous(self):
+        """Required for Django REST Framework authentication"""
+        return False
