@@ -115,6 +115,52 @@ class AccountLoginSerializer(serializers.Serializer):
         return attrs
 
 
+class GoogleLoginSerializer(serializers.Serializer):
+    """Serializer for Google OAuth login"""
+    
+    access_token = serializers.CharField(required=True, write_only=True)
+    
+    def validate(self, attrs):
+        """Validate and verify Google access token"""
+        from google.oauth2 import id_token
+        from google.auth.transport import requests
+        from django.conf import settings
+        
+        access_token = attrs.get('access_token')
+        
+        if not settings.GOOGLE_CLIENT_ID:
+            raise serializers.ValidationError({
+                'error': 'Google OAuth is not configured. Please set GOOGLE_CLIENT_ID in settings.'
+            })
+        
+        try:
+            # Verify the token with Google
+            idinfo = id_token.verify_oauth2_token(
+                access_token,
+                requests.Request(),
+                settings.GOOGLE_CLIENT_ID
+            )
+            
+            # Verify the issuer
+            if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+                raise serializers.ValidationError({
+                    'error': 'Invalid token issuer.'
+                })
+            
+            # Store verified token info in validated_data
+            attrs['verified_token'] = idinfo
+            return attrs
+            
+        except ValueError as e:
+            raise serializers.ValidationError({
+                'error': f'Invalid Google token: {str(e)}'
+            })
+        except Exception as e:
+            raise serializers.ValidationError({
+                'error': f'Token verification failed: {str(e)}'
+            })
+
+
 class EmailVerificationSerializer(serializers.Serializer):
     """Serializer for email verification"""
     
@@ -135,6 +181,51 @@ class ResendVerificationSerializer(serializers.Serializer):
         except Account.DoesNotExist:
             raise serializers.ValidationError("Email not found.")
         return value.lower()
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    """Serializer for forgot password request"""
+    
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """Check if email exists and has password"""
+        try:
+            account = Account.objects.get(email=value.lower())
+            # Check if account has password (not Google-only)
+            if not account.has_password:
+                raise serializers.ValidationError(
+                    "This email is registered with Google. Please use Google login."
+                )
+        except Account.DoesNotExist:
+            # Don't reveal if email exists for security
+            pass
+        return value.lower()
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    """Serializer for password reset"""
+    
+    token = serializers.CharField(required=True, max_length=255)
+    password = serializers.CharField(
+        required=True,
+        write_only=True,
+        validators=[validate_password],
+        style={'input_type': 'password'}
+    )
+    password_confirm = serializers.CharField(
+        required=True,
+        write_only=True,
+        style={'input_type': 'password'}
+    )
+    
+    def validate(self, attrs):
+        """Validate password confirmation"""
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({
+                'password_confirm': "Passwords do not match."
+            })
+        return attrs
 
 
 class AccountProfileSerializer(serializers.ModelSerializer):

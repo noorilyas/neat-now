@@ -197,7 +197,7 @@ FRONTEND_URL = 'http://localhost:3000'  # Update with your Flutter app deep link
 
 # Google OAuth Configuration
 # Get this from Google Cloud Console: https://console.cloud.google.com/
-GOOGLE_CLIENT_ID = None  # Set this in production: 'your-google-client-id.apps.googleusercontent.com'
+GOOGLE_CLIENT_ID = '708774551556-4kv2b0ov22g0brgi4b64u694cksttsr5.apps.googleusercontent.com'  # Set this in production: 'your-google-client-id.apps.googleusercontent.com'
 
 # Cache Configuration (for email verification tokens)
 CACHES = {

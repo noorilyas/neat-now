@@ -67,3 +67,61 @@ def send_verification_email(account, token):
         print(f"Error sending email: {e}")
         return False
 
+
+def store_password_reset_token(email, token):
+    """Store password reset token in cache with 1 hour expiry"""
+    cache_key = f'password_reset_{token}'
+    cache.set(cache_key, email, timeout=3600)  # 1 hour
+
+
+def get_email_from_reset_token(token):
+    """Retrieve email from password reset token"""
+    cache_key = f'password_reset_{token}'
+    email = cache.get(cache_key)
+    if email:
+        # Delete token after use (one-time use)
+        cache.delete(cache_key)
+    return email
+
+
+def send_password_reset_email(account, token):
+    """Send password reset email to user"""
+    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+    
+    # HTML email template
+    html_message = f"""
+    <html>
+    <body>
+        <h2>Reset Your Password</h2>
+        <p>Hello {account.name},</p>
+        <p>You requested to reset your password for your Neat Now account.</p>
+        <p>Click the link below to reset your password:</p>
+        <p><a href="{reset_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
+        <p>Or copy and paste this link into your browser:</p>
+        <p>{reset_url}</p>
+        <p>This link will expire in 1 hour.</p>
+        <p>If you did not request a password reset, please ignore this email. Your password will remain unchanged.</p>
+        <br>
+        <p>Best regards,<br>Neat Now Team</p>
+    </body>
+    </html>
+    """
+    
+    plain_message = strip_tags(html_message)
+    
+    try:
+        from_email = settings.DEFAULT_FROM_EMAIL or 'noreply@neatnow.com'
+        
+        send_mail(
+            subject='Reset Your Password - Neat Now',
+            message=plain_message,
+            from_email=from_email,
+            recipient_list=[account.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+
