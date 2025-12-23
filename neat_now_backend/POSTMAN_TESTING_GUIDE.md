@@ -260,3 +260,5 @@
 - Check `settings.py` for email configuration
 - For testing, emails will print to console if using console backend
 
+
+

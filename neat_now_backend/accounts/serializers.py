@@ -55,8 +55,14 @@ class AccountRegistrationSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         """Create new Citizen account"""
+        from django.conf import settings
+        
         validated_data.pop('password_confirm')
         password = validated_data.pop('password')
+        
+        # In development mode, auto-verify email for easier testing
+        # In production, email verification is required
+        auto_verify = settings.DEBUG
         
         account = Account.objects.create(
             email=validated_data['email'],
@@ -64,7 +70,7 @@ class AccountRegistrationSerializer(serializers.ModelSerializer):
             phone_number=validated_data.get('phone_number'),
             profile_image=validated_data.get('profile_image'),
             role='Citizen',
-            email_verified=False,
+            email_verified=auto_verify,  # Auto-verify in development mode
         )
         account.set_password(password)
         account.save()

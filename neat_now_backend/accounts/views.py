@@ -47,21 +47,34 @@ def register_view(request):
     if serializer.is_valid():
         account = serializer.save()
         
-        # Generate verification token
-        token = generate_verification_token()
-        store_verification_token(account.email, token)
-        
-        # Send verification email
-        send_verification_email(account, token)
-        
-        return Response(
-            {
-                'message': 'Registration successful. Please check your email to verify your account.',
-                'account_id': account.account_id,
-                'email': account.email,
-            },
-            status=status.HTTP_201_CREATED
-        )
+        # Only send verification email if email is not already verified
+        # (In development mode, email is auto-verified)
+        if not account.email_verified:
+            # Generate verification token
+            token = generate_verification_token()
+            store_verification_token(account.email, token)
+            
+            # Send verification email
+            send_verification_email(account, token)
+            
+            return Response(
+                {
+                    'message': 'Registration successful. Please check your email to verify your account.',
+                    'account_id': account.account_id,
+                    'email': account.email,
+                },
+                status=status.HTTP_201_CREATED
+            )
+        else:
+            # Email already verified (development mode)
+            return Response(
+                {
+                    'message': 'Registration successful. Your account is ready to use.',
+                    'account_id': account.account_id,
+                    'email': account.email,
+                },
+                status=status.HTTP_201_CREATED
+            )
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

@@ -177,7 +177,24 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
 ]
 
+# Allow all origins for Flutter mobile app (development)
+# For production, specify exact origins
+CORS_ALLOW_ALL_ORIGINS = True  # Set to False in production and use CORS_ALLOWED_ORIGINS
+
 CORS_ALLOW_CREDENTIALS = True
+
+# Allow common headers
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # Email Configuration
 # For Development: Use console backend (emails print to console)
@@ -193,7 +210,9 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # DEFAULT_FROM_EMAIL = 'your-email@gmail.com'  # Set your default from email
 
 # Frontend URL for email verification links
-FRONTEND_URL = 'http://localhost:3000'  # Update with your Flutter app deep link or web URL
+# For Flutter web: http://localhost:3000 (or your deployed URL)
+# For mobile deep links: neatnow://verify-email?token=...
+FRONTEND_URL = 'http://localhost:59805'  # Flutter web URL for development
 
 # Google OAuth Configuration
 # Get this from Google Cloud Console: https://console.cloud.google.com/
