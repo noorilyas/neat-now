@@ -13,7 +13,7 @@ class AccountAdmin(admin.ModelAdmin):
             'fields': ('email', 'password_hash', 'email_verified', 'google_id')
         }),
         ('Profile', {
-            'fields': ('name', 'phone_number', 'profile_image', 'role')
+            'fields': ('name', 'phone_number', 'bio', 'profile_image', 'role')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')

@@ -244,7 +244,7 @@ class AccountProfileSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Account
-        fields = ['account_id', 'email', 'name', 'phone_number', 'profile_image', 
+        fields = ['account_id', 'email', 'name', 'phone_number', 'bio', 'profile_image', 
                   'role', 'email_verified', 'created_at', 'monthly_rank', 'badge', 'verified_reports']
         read_only_fields = ['account_id', 'email', 'role', 'email_verified', 'created_at', 
                           'monthly_rank', 'badge', 'verified_reports']

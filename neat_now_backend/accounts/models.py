@@ -37,6 +37,7 @@ class Account(models.Model):
             )
         ]
     )
+    bio = models.TextField(max_length=500, null=True, blank=True, help_text='User bio/description')
     profile_image = models.ImageField(upload_to='profiles/%Y/%m/%d/', null=True, blank=True)
     
     # Google OAuth

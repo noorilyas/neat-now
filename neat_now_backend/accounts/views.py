@@ -113,6 +113,7 @@ def login_view(request):
                     'phone_number': account.phone_number,
                     'profile_image': account.profile_image.url if account.profile_image else None,
                     'email_verified': account.email_verified,
+                    'created_at': account.created_at.isoformat() if account.created_at else None,
                 }
             },
             status=status.HTTP_200_OK
@@ -197,6 +198,7 @@ def google_login_view(request):
                     'phone_number': account.phone_number,
                     'profile_image': account.profile_image.url if account.profile_image else None,
                     'email_verified': account.email_verified,
+                    'created_at': account.created_at.isoformat() if account.created_at else None,
                 }
             },
             status=status.HTTP_200_OK
