@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Report
+from .models import Report, ImageStorageLog
 
 
 @admin.register(Report)
@@ -49,3 +49,32 @@ class ReportAdmin(admin.ModelAdmin):
             'fields': ('submitted_at', 'updated_at', 'resolved_at')
         }),
     )
+
+
+@admin.register(ImageStorageLog)
+class ImageStorageLogAdmin(admin.ModelAdmin):
+    """Admin interface for Image Storage Log"""
+    list_display = [
+        'image_log_id',
+        'report',
+        'image_type',
+        'storage_path',
+        'uploaded_at',
+    ]
+    list_filter = [
+        'image_type',
+        'uploaded_at',
+    ]
+    search_fields = [
+        'image_log_id',
+        'report__report_id',
+        'storage_path',
+    ]
+    readonly_fields = [
+        'image_log_id',
+        'uploaded_at',
+    ]
+    date_hierarchy = 'uploaded_at'
+    raw_id_fields = ('report',)
+
+

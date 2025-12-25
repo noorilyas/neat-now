@@ -1,5 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
+from django.db.models import Count, Q
 from accounts.models import Account
 
 
@@ -144,3 +146,63 @@ class Report(models.Model):
             self.longitude = longitude
             return True
         return False
+
+
+class ImageStorageLog(models.Model):
+    """
+    Central registry for every file uploaded to cloud/server storage.
+    Stores image metadata and storage paths as references.
+    """
+    
+    IMAGE_TYPE_CHOICES = [
+        ('before', 'Before'),
+        ('after', 'After'),
+        ('profile', 'Profile'),
+    ]
+    
+    # Primary key
+    image_log_id = models.BigAutoField(primary_key=True)
+    
+    # Foreign key to Report (nullable for profile images)
+    report = models.ForeignKey(
+        Report,
+        on_delete=models.CASCADE,
+        related_name='image_logs',
+        db_column='report_id',
+        null=True,
+        blank=True,
+        help_text='Links the image to a specific report (null for profile images)'
+    )
+    
+    # Image type
+    image_type = models.CharField(
+        max_length=10,
+        choices=IMAGE_TYPE_CHOICES,
+        help_text='Identifies what the image is: before, after, or profile'
+    )
+    
+    # Storage path
+    storage_path = models.CharField(
+        max_length=1024,
+        null=False,
+        blank=False,
+        help_text='The URL/Path where the file lives in storage'
+    )
+    
+    # Timestamp
+    uploaded_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    
+    class Meta:
+        db_table = 'image_storage_log'
+        ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['report', 'image_type']),
+            models.Index(fields=['image_type', 'uploaded_at']),
+            models.Index(fields=['uploaded_at']),
+        ]
+        verbose_name = 'Image Storage Log'
+        verbose_name_plural = 'Image Storage Logs'
+    
+    def __str__(self):
+        report_info = f'Report #{self.report.report_id}' if self.report else 'Profile'
+        return f'Image Log #{self.image_log_id} - {self.image_type} - {report_info}'

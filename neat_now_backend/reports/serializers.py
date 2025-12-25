@@ -3,6 +3,12 @@ from .models import Report
 from accounts.models import Account
 from decimal import Decimal
 
+# Import ImageStorageLog with try-except to handle missing table
+try:
+    from .models import ImageStorageLog
+except Exception:
+    ImageStorageLog = None
+
 
 class ReportCreateSerializer(serializers.ModelSerializer):
     """
@@ -95,15 +101,44 @@ class ReportCreateSerializer(serializers.ModelSerializer):
         # Get citizen from request user
         citizen = self.context['request'].user
         
+        # Get image file
+        image_file = validated_data['image_before']
+        
         # Create report
         report = Report.objects.create(
             citizen=citizen,
-            image_before=validated_data['image_before'],
+            image_before=image_file,
             latitude=validated_data.get('latitude'),
             longitude=validated_data.get('longitude'),
             status='Pending',
             ai_result='Unverified',
         )
+        
+        # Log image storage in IMAGE_STORAGE_LOG (if table exists)
+        if ImageStorageLog:
+            try:
+                request = self.context['request']
+                image_url = request.build_absolute_uri(report.image_before.url)
+                
+                ImageStorageLog.objects.create(
+                    report=report,
+                    image_type='before',
+                    storage_path=image_url,
+                )
+            except Exception as e:
+                # If ImageStorageLog table doesn't exist yet (migrations not run), continue without logging
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f'Could not log image to ImageStorageLog: {e}. Run migrations first.')
+        
+        # Update user monthly stats (for leaderboard) - count uploaded reports
+        try:
+            from gamification.models import UserMonthlyStats
+            UserMonthlyStats.update_user_stats(citizen)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f'Could not update user stats: {e}')
         
         return report
 
@@ -116,6 +151,10 @@ class ReportListSerializer(serializers.ModelSerializer):
     citizen_name = serializers.CharField(source='citizen.name', read_only=True)
     worker_email = serializers.EmailField(source='worker.email', read_only=True, allow_null=True)
     worker_name = serializers.CharField(source='worker.name', read_only=True, allow_null=True)
+    
+    # Override image fields to return full URLs
+    image_before = serializers.SerializerMethodField()
+    image_after = serializers.SerializerMethodField()
     
     class Meta:
         model = Report
@@ -137,7 +176,54 @@ class ReportListSerializer(serializers.ModelSerializer):
             'updated_at',
             'resolved_at',
         ]
-        read_only_fields = '__all__'
+        read_only_fields = [
+            'report_id',
+            'citizen_email',
+            'citizen_name',
+            'worker_email',
+            'worker_name',
+            'status',
+            'ai_result',
+            'waste_type',
+            'ai_confidence',
+            'latitude',
+            'longitude',
+            'image_before',
+            'image_after',
+            'submitted_at',
+            'updated_at',
+            'resolved_at',
+        ]
+    
+    def get_image_before(self, obj):
+        """Return full URL for image_before"""
+        try:
+            if obj.image_before:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(obj.image_before.url)
+                return obj.image_before.url
+        except Exception as e:
+            # Log error but don't break the API
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'Error getting image_before URL for report {obj.report_id}: {e}')
+        return None
+    
+    def get_image_after(self, obj):
+        """Return full URL for image_after"""
+        try:
+            if obj.image_after:
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(obj.image_after.url)
+                return obj.image_after.url
+        except Exception as e:
+            # Log error but don't break the API
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'Error getting image_after URL for report {obj.report_id}: {e}')
+        return None
 
 
 class ReportDetailSerializer(serializers.ModelSerializer):
@@ -198,10 +284,44 @@ class ReportUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """Update report and set resolved_at if status is Resolved"""
         status = validated_data.get('status', instance.status)
+        image_after = validated_data.get('image_after')
         
-        if status == 'Resolved' and instance.status != 'Resolved':
+        # Update the report first
+        updated_instance = super().update(instance, validated_data)
+        
+        # If image_after is provided and it's a new upload, log it in IMAGE_STORAGE_LOG
+        if image_after and updated_instance.image_after and ImageStorageLog:
+            try:
+                request = self.context.get('request')
+                if request:
+                    image_url = request.build_absolute_uri(updated_instance.image_after.url)
+                    
+                    # Check if this image is already logged
+                    existing_log = ImageStorageLog.objects.filter(
+                        report=updated_instance,
+                        image_type='after',
+                        storage_path=image_url
+                    ).first()
+                    
+                    if not existing_log:
+                        ImageStorageLog.objects.create(
+                            report=updated_instance,
+                            image_type='after',
+                            storage_path=image_url,
+                        )
+            except Exception as e:
+                # If ImageStorageLog table doesn't exist yet, continue without logging
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f'Could not log image_after to ImageStorageLog: {e}. Run migrations first.')
+        
+        # Set resolved_at if status changed to Resolved
+        if updated_instance.status == 'Resolved' and instance.status != 'Resolved':
             from django.utils import timezone
-            validated_data['resolved_at'] = timezone.now()
+            updated_instance.resolved_at = timezone.now()
+            updated_instance.save()
+            
+            # Note: User stats are updated when report is created (uploaded), not when resolved
+            # Leaderboard counts uploaded reports based on submitted_at, not resolved_at
         
-        return super().update(instance, validated_data)
-
+        return updated_instance

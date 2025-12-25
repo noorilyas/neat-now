@@ -2,7 +2,7 @@ from rest_framework import status, generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Report
+from .models import Report, ImageStorageLog
 from .serializers import (
     ReportCreateSerializer,
     ReportListSerializer,
@@ -67,15 +67,21 @@ class ReportListView(generics.ListAPIView):
         
         # Citizens see only their own reports
         if user.role == 'Citizen':
-            return Report.objects.filter(citizen=user)
+            return Report.objects.filter(citizen=user).select_related('citizen', 'worker')
         
         # Workers see assigned reports
         elif user.role == 'Worker':
-            return Report.objects.filter(worker=user)
+            return Report.objects.filter(worker=user).select_related('citizen', 'worker')
         
         # Admins see all reports (if admin role exists)
         else:
-            return Report.objects.all()
+            return Report.objects.all().select_related('citizen', 'worker')
+    
+    def get_serializer_context(self):
+        """Add request to serializer context for building absolute URLs"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
 
 class ReportDetailView(generics.RetrieveAPIView):
@@ -133,6 +139,12 @@ class ReportUpdateView(generics.UpdateAPIView):
         else:
             # Admins can update all reports
             return Report.objects.all()
+    
+    def get_serializer_context(self):
+        """Add request to serializer context for building absolute URLs"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
     
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', True)

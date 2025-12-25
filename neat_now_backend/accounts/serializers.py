@@ -237,11 +237,17 @@ class ResetPasswordSerializer(serializers.Serializer):
 class AccountProfileSerializer(serializers.ModelSerializer):
     """Serializer for account profile (read/update)"""
     
+    # Leaderboard stats (read-only, computed fields)
+    monthly_rank = serializers.SerializerMethodField()
+    badge = serializers.SerializerMethodField()
+    verified_reports = serializers.SerializerMethodField()
+    
     class Meta:
         model = Account
         fields = ['account_id', 'email', 'name', 'phone_number', 'profile_image', 
-                  'role', 'email_verified', 'created_at']
-        read_only_fields = ['account_id', 'email', 'role', 'email_verified', 'created_at']
+                  'role', 'email_verified', 'created_at', 'monthly_rank', 'badge', 'verified_reports']
+        read_only_fields = ['account_id', 'email', 'role', 'email_verified', 'created_at', 
+                          'monthly_rank', 'badge', 'verified_reports']
     
     def validate_phone_number(self, value):
         """Validate phone number format"""
@@ -269,4 +275,43 @@ class AccountProfileSerializer(serializers.ModelSerializer):
                     "File must be an image."
                 )
         return value
+    
+    def get_monthly_rank(self, obj):
+        """Get current user's monthly rank"""
+        try:
+            from gamification.models import UserMonthlyStats
+            month_year = UserMonthlyStats.get_current_month_year()
+            stats = UserMonthlyStats.objects.filter(
+                user=obj,
+                month_year=month_year
+            ).first()
+            return stats.monthly_rank if stats else None
+        except Exception:
+            return None
+    
+    def get_badge(self, obj):
+        """Get current user's badge"""
+        try:
+            from gamification.models import UserMonthlyStats
+            month_year = UserMonthlyStats.get_current_month_year()
+            stats = UserMonthlyStats.objects.filter(
+                user=obj,
+                month_year=month_year
+            ).first()
+            return stats.badge if stats else 'None'
+        except Exception:
+            return 'None'
+    
+    def get_verified_reports(self, obj):
+        """Get current user's verified reports count for current month"""
+        try:
+            from gamification.models import UserMonthlyStats
+            month_year = UserMonthlyStats.get_current_month_year()
+            stats = UserMonthlyStats.objects.filter(
+                user=obj,
+                month_year=month_year
+            ).first()
+            return stats.verified_reports if stats else 0
+        except Exception:
+            return 0
 
