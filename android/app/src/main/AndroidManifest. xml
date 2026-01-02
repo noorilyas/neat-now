@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:label="neat_now"
@@ -5,6 +6,41 @@
         android:icon="@mipmap/ic_launcher">
         <activity
             android: name=". MainActivity"
+=======
+﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.neat_now">
+
+    <!-- Notification permission (required on Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Location permissions (foreground) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Background location (only if your app needs to access location in the background) -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Time zone & time settings -->
+    <uses-permission android:name="android.permission.SET_TIME_ZONE" />
+    <uses-permission android:name="android.permission.SET_TIME" />
+
+    <!-- Internet (almost always needed in Flutter apps) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Network state (optional, needed by some plugins) -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Bluetooth (optional, for proximity/location with some plugins) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+
+    <application
+        android:label="neat_now"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        <activity
+            android:name=".MainActivity"
+>>>>>>> f28498b (Added FYP App code)
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
@@ -13,22 +49,39 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
             <meta-data
+<<<<<<< HEAD
               android:name="io.flutter. embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
             <intent-filter>
                 <action android:name="android.intent.action. MAIN"/>
                 <category android: name="android.intent.category. LAUNCHER"/>
+=======
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"
+            />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+>>>>>>> f28498b (Added FYP App code)
             </intent-filter>
         </activity>
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+<<<<<<< HEAD
+=======
+
+>>>>>>> f28498b (Added FYP App code)
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
     </queries>
+<<<<<<< HEAD
 </manifest>
+=======
+</manifest>
+>>>>>>> f28498b (Added FYP App code)
