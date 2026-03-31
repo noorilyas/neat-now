@@ -99,7 +99,7 @@ Built-in augmentations used during training: mosaic, mixup, HSV jitter, horizont
 ## Project Structure
 
 ```
-smart-waste-detection/
+Qasim-AI/
 ├── train.ipynb              # Main training notebook (Kaggle-ready)
 ├── augment_upload.ipynb     # Offline augmentation + Roboflow upload
 ├── eda.ipynb                # Exploratory data analysis
@@ -222,9 +222,9 @@ If you use this work in your own research or project, please cite:
 
 ```bibtex
 @misc{smartwaste2026,
-  title  = {Smart Waste Detection using YOLOv8/YOLO26},
-  author = {Your Name},
+  title  = {Neat Now Smart Waste Detection using YOLOv8/YOLO26},
+  author = {Qasim Javed},
   year   = {2026},
-  url    = {https://github.com/yourusername/smart-waste-detection}
+  url    = {https://github.com/jqasim522@gmail.com/neat-now/Qasim-AI}
 }
 ```
