@@ -91,5 +91,5 @@ Training was performed on a **NVIDIA T4 GPU** (Kaggle) with mixed precision.
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/smart-waste-detection.git
-cd smart-waste-detection
+git clone https://https://github.com/noorilyas/neat-now/edit/AI-Qasim.git
+cd AI-Qasim
