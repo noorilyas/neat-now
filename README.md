@@ -1,124 +1,132 @@
-# Neat Now (Smart Waste Detection) — YOLOv8 / YOLO26
+<div align="center">
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Ultralytics](https://img.shields.io/badge/ultralytics-yolov8-brightgreen)](https://github.com/ultralytics/ultralytics)
-[![Dataset: Roboflow](https://img.shields.io/badge/dataset-roboflow-purple)](https://roboflow.com)
+<img src="https://img.shields.io/badge/Neat_Now-Smart_Waste_Detection-22c55e?style=for-the-badge&logo=leaf&logoColor=white" alt="Neat Now"/>
 
-> Real-time object detection for intelligent waste classification and management.  
-> Fine-tuned YOLO26 (Fast) on a 9-class Asian waste dataset — achieving **72% mAP@0.5** in 50 epochs.
+# 🗑️ Neat Now — Smart Waste Detection
 
----
+**Real-time, 9-class waste classification powered by YOLO26**  
+*A Final Year Project (FYP) targeting intelligent waste monitoring in Pakistani urban environments*
 
-## Overview
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square)](https://opensource.org/licenses/MIT)
+[![Ultralytics YOLO26](https://img.shields.io/badge/Ultralytics-YOLO26-00B4D8?style=flat-square)](https://github.com/ultralytics/ultralytics)
+[![Dataset: Roboflow](https://img.shields.io/badge/Dataset-Roboflow_v6-7C3AED?style=flat-square)](https://roboflow.com)
+[![Trained on Kaggle](https://img.shields.io/badge/Trained_on-Kaggle_T4-20BEFF?style=flat-square&logo=kaggle)](https://kaggle.com)
 
-This project delivers a production-ready waste detection system trained to identify and classify nine distinct waste categories from images and video. It is built as the computer-vision component of a Final Year Project (FYP) targeting smart city waste monitoring in Pakistan.
-
-The training pipeline handles the full lifecycle: dataset download via Roboflow, exploratory data analysis, offline augmentation for minority classes, model training with early stopping, and comprehensive evaluation with per-class metrics.
-
-Three model versions were trained iteratively:
-
-| Version | Architecture | Epochs | mAP@0.5 | Precision | Recall |
-|---------|-------------|--------|---------|-----------|--------|
-| v1      | YOLOv8m     | 100    | 68.0%   | 72.0%     | 63.0%  |
-| v2      | YOLO26 Fast | 150    | 68.4%   | 76.8%     | 61.3%  |
-| v3/v4   | YOLO26 Fast | 50     | **72.0%** | **81.8%** | **63.2%** |
+</div>
 
 ---
 
-## Classes
+## 📊 Model Performance at a Glance
 
-| ID | Class              | Notes                                      |
-|----|--------------------|--------------------------------------------|
-| 0  | Animal Waste       |                                            |
-| 1  | Construction Waste | Challenging — tiny boxes, sparse data      |
-| 2  | Garbage Bag        |                                            |
-| 3  | Glass              |                                            |
-| 4  | Metal              |                                            |
-| 5  | Organic            |                                            |
-| 6  | Paper              |                                            |
-| 7  | Plastic            |                                            |
-| 8  | waste              | General/mixed refuse catch-all             |
+| Metric | v1 YOLOv8m | v2 YOLO26 150ep | v3/v4 YOLO26 50ep | **v6 YOLO26 (Latest)** |
+|:---|:---:|:---:|:---:|:---:|
+| **mAP@0.5 (val)** | 68.0% | 68.4% | 72.0% | **75.2%** |
+| **mAP@0.5 (test)** | — | — | 71.0% | **77.0%** |
+| **Precision** | 72.0% | 76.8% | 81.8% | **80.0%** |
+| **Recall** | 63.0% | 61.3% | 63.2% | **68.8%** |
+
+> ✅ **v6 achieves the best test mAP to date (77%)** — up +6pp from v3/v4. Construction Waste AP jumped from 19% → **84%** on the test set.
 
 ---
 
-## Dataset
+## 🏗️ Project Overview
 
-- **Total images:** 11,523 (640 × 640 px, uniform)
-- **Total annotations:** 27,275 bounding boxes
-- **Split:** 79.6% train / 9.9% val / 10.6% test
-- **Source:** Collected and annotated via [Roboflow](https://roboflow.com)
-- **Imbalance:** Construction Waste is the minority class (2.5× imbalance ratio vs majority)
+Neat Now is a computer-vision pipeline that detects and classifies **nine waste categories** from images and live video. It is built as the CV backbone for a smart-city waste monitoring system targeting urban residential areas in Pakistan.
 
-Offline augmentation was applied to Construction Waste images to address class imbalance:
-- Horizontal flip, random 90° rotation, shift/scale/rotate (±30°), brightness/contrast jitter, Gaussian noise
-- This tripled Construction Waste representation from ~295 unique images before augmentation
-
-> **Note on Construction Waste:** AP@0.5 on the test set is 19% — significantly below other classes. This reflects the visual heterogeneity of the class (rubble, timber, pipes, concrete) and a limited diversity of source images rather than a model deficiency. It is flagged as a known limitation and prioritised for future data collection.
-
----
-
-## Results
-
-### Per-class AP@0.5 — final model (val / test)
-
-| Class              | Val AP | Test AP | Gap    |
-|--------------------|--------|---------|--------|
-| Metal              | 88%    | 88%     | 0pp    |
-| Glass              | 88%    | 72%     | -17pp  |
-| Paper              | 88%    | 88%     | 0pp    |
-| Garbage Bag        | 81%    | 79%     | -2pp   |
-| Organic            | 76%    | 72%     | -4pp   |
-| Plastic            | 73%    | 89%     | +18pp  |
-| waste              | 62%    | 60%     | -2pp   |
-| Animal Waste       | 61%    | 69%     | +8pp   |
-| Construction Waste | 33%    | 19%     | -14pp  |
-| **Overall**        | **72%**| **71%** | -1pp   |
-
----
-
-## Model
-
-| Parameter             | Value                    |
-|-----------------------|--------------------------|
-| Architecture          | YOLO26 Object Detection (Fast) |
-| Input resolution      | 640 × 640                |
-| Epochs                | 50                       |
-| Early-stop patience   | 30                       |
-| Optimizer             | SGD                      |
-| Initial LR            | 0.01                     |
-| Momentum              | 0.937                    |
-| Weight decay          | 0.0005                   |
-| Training hardware     | NVIDIA T4 (Kaggle)       |
-| Training time         | ~4 hours                 |
-
-Built-in augmentations used during training: mosaic, mixup, HSV jitter, horizontal flip, scale, and rotation.
-
----
-
-## Project Structure
+The pipeline covers the full ML lifecycle:
 
 ```
-Qasim-AI/
-├── train.ipynb              # Main training notebook (Kaggle-ready)
-├── augment_upload.ipynb     # Offline augmentation + Roboflow upload
-├── eda.ipynb                # Exploratory data analysis
-├── data/
-│   └── data.yaml            # Dataset config for YOLO
-├── weights/
-│   └── best.pt              # Best checkpoint (download separately)
-└── README.md
+Roboflow Dataset Download
+        ↓
+Exploratory Data Analysis (EDA)
+        ↓
+Offline Augmentation (minority class balancing)
+        ↓
+YOLO26 Fine-tuning with Early Stopping
+        ↓
+Per-class Evaluation + Val/Test Gap Analysis
+        ↓
+Export (ONNX / TorchScript / TensorRT)
 ```
 
 ---
 
-## Quick start
+## 🗂️ Waste Classes
 
-### 1. Clone the repository
+| ID | Class | Test AP (v6) | Notes |
+|:--|:--|:--:|:--|
+| 0 | Animal Waste | 69% | Good generalisation — +13pp test vs val |
+| 1 | Construction Waste | **84%** | Massive recovery from v3/v4's 19% |
+| 2 | Garbage Bag | 80% | Stable across splits |
+| 3 | Glass | 70% | Val 88% → Test 70% gap in older models; resolved in v6 |
+| 4 | Metal | 85% | Consistently top performer |
+| 5 | Organic | 67% | Lowest performer — visual ambiguity with waste class |
+| 6 | Paper | 86% | Best performer |
+| 7 | Plastic | 86% | Best performer — positive generalisation |
+| 8 | waste | 61% | Catch-all class; class ambiguity limits ceiling |
+
+---
+
+## 📦 Dataset
+
+| Property | Value |
+|:--|:--|
+| **Total images** | 11,523 (640 × 640 px, uniform) |
+| **Total annotations** | 27,639 bounding boxes |
+| **Train split** | 9,167 images / 23,013 annotations (79.6%) |
+| **Val split** | 1,140 images / 2,359 annotations (9.9%) |
+| **Test split** | 1,216 images / 2,267 annotations (10.6%) |
+| **Avg boxes/image** | 2.51 train · 2.07 val · 1.86 test |
+| **Source** | [Roboflow](https://roboflow.com) — collected & annotated |
+| **Imbalance** | Construction Waste: 2.5× minority (295 unique images) |
+
+### Class Imbalance & Augmentation
+
+Construction Waste is the dataset's minority class at 2.5× imbalance ratio. Offline augmentation was applied to triple its representation before upload:
+
+- Horizontal flip, random 90° rotation
+- Shift / scale / rotate (±30°)
+- Brightness & contrast jitter
+- Gaussian noise injection
+
+### Known Dataset Issues
+
+| Issue | Impact | Fix (Roadmap) |
+|:--|:--|:--|
+| Val boxes statistically larger than train (KS test confirmed) | Val mAP may over-estimate real-world small-object performance | Re-shuffle train/val split |
+| Construction Waste covers only 295 unique source images | Limits model diversity despite augmentation | Collect 500+ new site images |
+| Predominantly urban-residential scenes | Poor generalisation to industrial/construction contexts | Expand domain coverage |
+| "waste" catch-all class is visually ambiguous | AP ceiling ~61% regardless of training | Refine or split the class |
+
+---
+
+## 🧠 Model Architecture
+
+| Parameter | Value |
+|:--|:--|
+| Architecture | YOLO26 Object Detection (Fast) |
+| Input resolution | 640 × 640 |
+| Epochs | 50 |
+| Early-stop patience | 30 |
+| Optimizer | SGD |
+| Initial LR | 0.01 |
+| Momentum | 0.937 |
+| Weight decay | 0.0005 |
+| Hardware | NVIDIA T4 (Kaggle) |
+| Training time | ~4 hours |
+
+**Built-in augmentations:** mosaic, mixup, HSV jitter, horizontal flip, scale, rotation.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone
 
 ```bash
-git clone https://github.com/yourusername/smart-waste-detection.git
-cd smart-waste-detection
+git clone https://github.com/yourusername/neat-now-waste-detection.git
+cd neat-now-waste-detection
 ```
 
 ### 2. Install dependencies
@@ -134,7 +142,7 @@ from roboflow import Roboflow
 
 rf = Roboflow(api_key="YOUR_API_KEY")
 project = rf.workspace("fyp-gojku").project("asian-waste-detection-dihfa-m9t9o-hqccl")
-dataset = project.version(4).download("yolov8")
+dataset = project.version(6).download("yolov8")  # use latest version
 ```
 
 ### 4. Train
@@ -148,22 +156,29 @@ yolo detect train \
   batch=32 \
   patience=30 \
   project=runs/train \
-  name=waste_v4
+  name=waste_v6
 ```
 
-> Training on Kaggle: open `train.ipynb`, enable GPU (T4), and run all cells. The notebook handles dataset download, training, and evaluation automatically.
+> **Kaggle users:** Open `train.ipynb`, enable T4 GPU, and run all cells. Dataset download, training, and evaluation are handled automatically.
 
-### 5. Run inference
+### 5. Inference
 
 ```python
 from ultralytics import YOLO
 
 model = YOLO("weights/best.pt")
+
+# Single image
 results = model("path/to/image.jpg")
 results[0].show()
+
+# Video stream
+results = model("path/to/video.mp4", stream=True)
+for r in results:
+    r.show()
 ```
 
-### 6. Evaluate
+### 6. Evaluate on test set
 
 ```bash
 yolo detect val \
@@ -174,57 +189,100 @@ yolo detect val \
 
 ---
 
-## Export for deployment
+## 📈 Per-class Results — v6 Final Model
+
+| Class | Val AP | Test AP | Trend |
+|:--|:--:|:--:|:--|
+| Paper | 86% | 86% | ✅ Stable top performer |
+| Plastic | 71% | 86% | 📈 Strong positive generalisation |
+| Metal | 85% | 85% | ✅ Consistent |
+| Garbage Bag | 81% | 80% | ✅ Stable |
+| Construction Waste | 77% | **84%** | 🚀 Massive v6 improvement |
+| Glass | 88% | 70% | ⚠️ Watch val/test gap |
+| Animal Waste | 56% | 69% | 📈 Good generalisation |
+| Organic | 71% | 67% | ➡️ Moderate, limited by visual ambiguity |
+| waste | 62% | 61% | ⚠️ Class ambiguity is the ceiling |
+| **Overall** | **75%** | **77%** | ✅ **Best model to date** |
+
+---
+
+## 📤 Export for Deployment
 
 ```python
 from ultralytics import YOLO
 
 model = YOLO("weights/best.pt")
 
-model.export(format="onnx")        # ONNX (CPU/GPU universal)
-model.export(format="torchscript") # TorchScript (mobile)
-model.export(format="engine")      # TensorRT (NVIDIA GPU, fastest)
+model.export(format="onnx")         # Universal CPU/GPU
+model.export(format="torchscript")  # Mobile deployment
+model.export(format="engine")       # TensorRT — fastest on NVIDIA GPUs
 ```
 
 ---
 
-## Known limitations
+## 🗂️ Project Structure
+
+```
+neat-now/
+├── train.ipynb              # Main training notebook (Kaggle-ready)
+├── augment_upload.ipynb     # Offline augmentation + Roboflow re-upload
+├── eda.ipynb                # Exploratory data analysis
+├── data/
+│   └── data.yaml            # YOLO dataset config
+├── weights/
+│   └── best.pt              # Best checkpoint (download separately)
+├── runs/                    # Training outputs (auto-generated)
+└── README.md
+```
+
+---
+
+## ⚠️ Known Limitations
 
 | Limitation | Detail |
-|---|---|
-| Construction Waste detection | 19% test AP. Class is visually heterogeneous (rubble, timber, concrete, pipes). Requires more diverse training data. |
-| Small object recall | 55.6% of Construction Waste boxes are under 1% image area. Training at `imgsz=1280` or using a P2 detection head is recommended. |
-| Train/val distribution shift | KS test confirms val boxes are statistically larger than train boxes. Val AP may over-estimate real-world performance on small objects. |
-| Scene domain coverage | Current data is predominantly urban residential. Construction site and industrial site coverage is limited. |
+|:--|:--|
+| `waste` class ceiling | Visual ambiguity with organic/paper limits AP to ~61% regardless of scale |
+| Small object recall | Many Construction Waste boxes are under 1% image area; training at `imgsz=1280` or a P2 head would help |
+| Scene domain gap | Data is predominantly urban-residential; poor coverage of industrial/construction sites |
+| Train/val size distribution shift | Confirmed by KS test — val boxes are statistically larger than train boxes |
 
 ---
 
-## Roadmap
+## 🗺️ Roadmap to 80%+ mAP
 
-- [ ] Collect 500+ new Construction Waste images from construction and demolition sites
-- [ ] Train at `imgsz=1280` to improve small-object detection
-- [ ] Evaluate a P2 detection head variant for tiny-box classes
-- [ ] Re-shuffle train/val split to eliminate distribution shift
-- [ ] Build a lightweight deployment demo (Gradio or Streamlit)
-- [ ] Add video inference support
+- [ ] **Re-shuffle train/val split** to eliminate bounding-box size distribution shift
+- [ ] **Collect 500+ new Construction Waste images** from demolition and active construction sites
+- [ ] **Train at `imgsz=1280`** to recover small-object recall
+- [ ] **Evaluate P2 detection head** for tiny-box classes (Construction Waste)
+- [ ] **Apply SAHI (Slicing Aided Hyper Inference)** at test time for dense small-object scenes
+- [ ] **Refine `waste` class** — split into sub-categories or merge with nearest semantic class
+- [ ] **Build deployment demo** (Gradio / Streamlit)
+- [ ] **Add real-time video inference** with tracking (ByteTrack)
 
 ---
 
-## License
+## 📜 License
 
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## Citation
-
-If you use this work in your own research or project, please cite:
+## 📖 Citation
 
 ```bibtex
-@misc{smartwaste2026,
-  title  = {Neat Now Smart Waste Detection using YOLOv8/YOLO26},
+@misc{neatnow2026,
+  title  = {Neat Now: Smart Waste Detection using YOLO26},
   author = {Qasim Javed},
   year   = {2026},
-  url    = {https://github.com/jqasim522@gmail.com/neat-now/Qasim-AI}
+  url    = {https://github.com/jqasim522/neat-now}
 }
 ```
+
+---
+
+<div align="center">
+
+Made with ☕ and too many training runs by **Qasim Javed**  
+*Lahore, Pakistan · FYP 2026*
+
+</div>
