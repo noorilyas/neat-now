@@ -72,18 +72,18 @@ Export (ONNX / TorchScript / TensorRT)
 
 | Property | Value |
 |:--|:--|
-| **Total images** | 11,523 (640 × 640 px, uniform) |
-| **Total annotations** | 27,639 bounding boxes |
-| **Train split** | 9,167 images / 23,013 annotations (79.6%) |
-| **Val split** | 1,140 images / 2,359 annotations (9.9%) |
-| **Test split** | 1,216 images / 2,267 annotations (10.6%) |
+| **Total images** | 12,690 (640 × 640 px, uniform) |
+| **Total annotations** | 27,944 bounding boxes |
+| **Train split** | 10,014 images / 23,013 annotations (79.6%) |
+| **Val split** | 1,338 images / 2,359 annotations (9.9%) |
+| **Test split** | 1,338 images / 2,267 annotations (10.6%) |
 | **Avg boxes/image** | 2.51 train · 2.07 val · 1.86 test |
 | **Source** | [Roboflow](https://roboflow.com) — collected & annotated |
-| **Imbalance** | Construction Waste: 2.5× minority (295 unique images) |
+| **Imbalance** | Construction Waste: 1.9× minority CW |
 
 ### Class Imbalance & Augmentation
 
-Construction Waste is the dataset's minority class at 2.5× imbalance ratio. Offline augmentation was applied to triple its representation before upload:
+Construction Waste is the dataset's minority class at 1.9 × imbalance ratio. Offline augmentation was applied to triple its representation before upload:
 
 - Horizontal flip, random 90° rotation
 - Shift / scale / rotate (±30°)
