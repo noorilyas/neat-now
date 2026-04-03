@@ -1,4 +1,4 @@
-# 🗑️ Asian Waste Detection — YOLOv8 / YOLO26 FYP
+# 🗑️ Neat Now — YOLOv8 / YOLO26 FYP
 
 > **9-class garbage detection model trained on Pakistani urban waste · 82% mAP@50 on test set**
 
