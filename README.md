@@ -43,7 +43,7 @@ The project ran **12+ training iterations** starting from 63.6% mAP and reached 
 
 ## 📊 Results
 
-### Current best — Neat Now 4 (YOLO26, Roboflow)
+### Roboflow Current best — Neat Now 5 (YOLO26, Roboflow)
 
 | Metric | Validation |
 |--------|------------|
@@ -52,7 +52,7 @@ The project ran **12+ training iterations** starting from 63.6% mAP and reached 
 | Recall | 72.2% |
 | F1 Score | 79.5% |
 
-### Kaggle experiment — YOLOv8m (Apr 4–5, 2026)
+### Current best Kaggle experiment — YOLOv8m (Apr 4–5, 2026)
 
 | Metric | Validation |
 |--------|------------|
