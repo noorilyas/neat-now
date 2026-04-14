@@ -49,8 +49,8 @@ The project ran **12+ training iterations** starting from 63.6% mAP and reached 
 
 | Model | Architecture | Val mAP@50 | Test mAP@50 | Precision | Recall | F1 | Optimal conf |
 |-------|-------------|------------|-------------|-----------|--------|----|--------------|
-| **YOLOv8m (Kaggle)** | YOLOv8m | **82.5%** | — | **88.6%** | 72.9% | — | 0.40 |
-| Neat Now 4 | YOLO26 Fast | 81.7% | — | 88.4% | 72.2% | 79.5% | 0.40 |
+| **YOLOv8m (Kaggle)** | YOLOv8m | **82.5%** | **81.2%** | **88.6%** | 79.9% |  | 0.40 |
+| Neat Now 4 | YOLO26 Fast | 81.7% | 82.0 | 88.4% | 72.2% | 79.5% | 0.40 |
 | Neat Now 3 | YOLO26 Fast | 79.5% | **82.0%** ✅ | 87.9% | 69.6% | 77.7% | 0.40 |
 | **Neat Now 1** | **RF3.0 Accurate** | **81.5%** | **76.0%** | **87.1%** | **75.2%** | **80.2%** | **0.53** |
 
@@ -63,12 +63,12 @@ The project ran **12+ training iterations** starting from 63.6% mAP and reached 
 | Metric | Validation | Test (Industry Standard) |
 |--------|------------|--------------------------|
 | **mAP@50** | **81.5%** | **76.0%** |
-| **mAP@50:95** | — | 62.8% |
-| **mAP@75** | — | 67.0% |
+| **mAP@50:95** | 66.4 | 62.8% |
+| **mAP@75** | 70.5 | 67.0% |
 | Precision | 87.0% | 87.1% |
 | Recall | 72.1% | 75.2% |
 | F1 | 78.9% | 80.2% |
-| Optimal confidence | — | **53%** |
+| Optimal confidence | **53%** | **53%** |
 
 #### mAP breakdown by object size (Test Set)
 
@@ -193,7 +193,7 @@ Three models are maintained across three architectures:
 | Train | 19,512 | 44,251 | 2.27 |
 | Valid | 1,254 | 2,470 | 1.97 |
 | Test | 1,265 | 2,056 | 1.63 |
-| **Total** | **22,031** | **48,777** | — |
+| **Total** | **12,270** | **26596** | 2.2 |
 
 ### Class balance (Neat Now 3)
 
