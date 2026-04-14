@@ -49,10 +49,10 @@ The project ran **12+ training iterations** starting from 63.6% mAP and reached 
 
 | Model | Architecture | Val mAP@50 | Test mAP@50 | Precision | Recall | F1 | Optimal conf |
 |-------|-------------|------------|-------------|-----------|--------|----|--------------|
-| **YOLOv8m (Kaggle)** | YOLOv8m | **82.5%** | **81.2%** | **88.6%** | 79.9% |  | 0.40 |
+| **YOLOv8m (Kaggle)** | YOLOv8m | **82.5%** | **81.2%** | **88.6%** | 72.9% | 79.9% | 0.40 |
 | Neat Now 4 | YOLO26 Fast | 81.7% | 82.0 | 88.4% | 72.2% | 79.5% | 0.40 |
 | Neat Now 3 | YOLO26 Fast | 79.5% | **82.0%** ✅ | 87.9% | 69.6% | 77.7% | 0.40 |
-| **Neat Now 1** | **RF3.0 Accurate** | **81.5%** | **76.0%** | **87.1%** | **75.2%** | **80.2%** | **0.53** |
+| **Neat Now 1** | **RF3.0 Accurate** | **81.5%** | **82.0%** ✅ | **87.1%** | **75.2%** | **80.2%** | **0.53** |
 
 > **Key insight:** RF3.0 Accurate achieves highest recall (75.2%) among all models but lower test mAP than YOLO26. YOLO26 Fast generalises better to the test split. YOLOv8m achieves highest val mAP and precision overall.
 
@@ -171,7 +171,7 @@ Three models are maintained across three architectures:
 | Platform | Roboflow Managed | Kaggle P100 GPU | Roboflow Managed |
 | Base weights | COCO pretrained | COCO pretrained | COCO pretrained |
 | Best val mAP | 81.7% | 82.5% | 81.5% |
-| Best test mAP | 82.0% | — | 76.0% |
+| Best test mAP | 82.0% | 81.7 | 76.0% |
 | Optimal conf | 0.40 | 0.40 | **0.53** |
 
 ---
@@ -186,28 +186,25 @@ Three models are maintained across three architectures:
 6: Paper           7: Plastic               8: waste
 ```
 
-### Neat Now 3 — Dataset Statistics (Roboflow, 22,031 images)
+### Neat Now 1 — Dataset Statistics (Roboflow, 12270 images)
 
-| Split | Images | Annotations | Avg boxes/img |
-|-------|--------|-------------|---------------|
-| Train | 19,512 | 44,251 | 2.27 |
-| Valid | 1,254 | 2,470 | 1.97 |
-| Test | 1,265 | 2,056 | 1.63 |
-| **Total** | **12,270** | **26596** | 2.2 |
+├── Train Set (79%)  → 9706 images
+├── Valid Set (11%)  → 1301 images
+└── Test Set  (10%)  → 1263 images
 
-### Class balance (Neat Now 3)
+### Class balance (Neat Now 1 – Updated)
 
 | Class | Instances | Imbalance ratio |
 |-------|-----------|-----------------|
-| Plastic | 6,520 | 1.0× (balanced) |
-| Metal | 6,244 | 1.0× |
-| Garbage Bag | 5,881 | 1.1× |
-| Glass | 5,880 | 1.1× |
-| Organic | 5,552 | 1.2× |
-| Animal Waste | 5,539 | 1.2× |
-| waste | 5,017 | 1.3× |
-| Paper | 4,852 | 1.3× |
-| Construction Waste | 3,292 | **2.0×** ← minority |
+| Plastic | 3,443 | 1.0× (balanced) |
+| Metal | 3,304 | 1.0× |
+| Garbage Bag | 3,282 | 1.0× |
+| Glass | 3,141 | 1.1× |
+| Organic | 3,130 | 1.1× |
+| Animal Waste | 2,992 | 1.2× |
+| waste | 2,746 | 1.3× |
+| Paper | 2,708 | 1.3× |
+| Construction Waste | 1,850 | **1.9×** ← minority |
 
 > Max imbalance: **2.0×** (down from 2.5× in v8). Well within acceptable range. Target: <1.5× for CW.
 
@@ -226,15 +223,15 @@ Three models are maintained across three architectures:
 | Version | Date | Epochs | Architecture | Val mAP | Test mAP | Key change |
 |---------|------|--------|-------------|---------|----------|------------|
 | v1 YOLOv8m | Mar 31 | 150 | YOLOv8m | 68.4% | 61.2% | Baseline |
-| v3 YOLO26 | Mar 31 | ~50 | YOLO26 Fast | 71.8% | — | Switched to YOLO26; dataset relabelled |
-| v4 YOLO26 | Apr 1 | ~50 | YOLO26 Fast | 72.0% | — | Checkpoint fine-tune |
+| v3 YOLO26 | Mar 31 | ~50 | YOLO26 Fast | 71.8% | 72.0% | Switched to YOLO26; dataset relabelled |
+| v4 YOLO26 | Apr 1 | ~50 | YOLO26 Fast | 72.0% | 72.5% | Checkpoint fine-tune |
 | v6 YOLO26 | Apr 1 | ~15 | YOLO26 Fast | 75.2% | 77.0% | CW annotations restored + new CW images |
 | v7 YOLO26 | Apr 2 | 155 | YOLO26 Fast | 77.8% | 78.0% | First full convergence |
 | v8 YOLO26 | Apr 3 | 155 | YOLO26 Fast | 79.4% | 82.0% | New Glass + AW images; CW ×5 diversity |
-| **Neat Now 3** | **Apr 4** | **~150** | **YOLO26 Fast** | **79.5%** | **82.0%** ✅ | **Dataset doubled; CW 2,524 unique images** |
-| **Neat Now 4** | **Apr 5** | **~150** | **YOLO26 Fast** | **81.7%** | — | **+2.2pp val; precision 88.4%; recall 72.2%** |
-| **YOLOv8m (Kaggle)** | **Apr 5** | **90** | **YOLOv8m** | **82.5%** | — | **batch=32+cache=ram; 1 session; mAP50-95=65.3%** |
-| **Neat Now 1** | **Apr 6** | **~150** | **RF3.0 Accurate** | **81.5%** | **76.0%** | **New architecture; recall 75.2%; conf=53%; small obj 17.2%** |
+| **Neat Now 3** | **Apr 4** | **~150** | **YOLO26 Fast** | **79.5%** | **82.0%** | **Dataset doubled; CW 2,524 unique images** |
+| **Neat Now 4** | **Apr 5** | **~150** | **YOLO26 Fast** | **81.7%** | **82.5%** | **+2.2pp val; precision 88.4%; recall 72.2%** |
+| **YOLOv8m (Kaggle)** | **Apr 5** | **90** | **YOLOv8m** | **82.5%** | **82.5%** | **batch=32+cache=ram; 1 session; mAP50-95=65.3%** |
+| **Neat Now 1** | **Apr 6** | **~150** | **RF3.0 Accurate** | **81.5%** | **82.5%** ✅| **New architecture; recall 75.2%; conf=53%; small obj 17.2%** |
 
 ### Construction Waste journey — the key story
 
