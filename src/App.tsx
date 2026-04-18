@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -10,21 +11,36 @@ import {
 } from 'lucide-react';
 import { Workers } from './pages/Workers';
 import { WorkerProfile } from './pages/WorkerProfile';
+import { Notifications } from './pages/Notifications';
 import { WorkerModal } from './components/WorkerModal';
 import { CreateTaskModal } from './components/CreateTaskModal';
-import { LoginScreen } from './pages/LoginScreen';
 import { DashboardView } from './pages/DashboardView';
 import { ReportsView } from './pages/ReportsView';
 import { MapView } from './pages/MapView';
 import { ReportDetailModal } from './components/ReportDetailModal';
 import { CitizensModal } from './components/CitizensModal';
 import { generateMockReports, generateMockWorkers } from './data/mockData';
-import { Report, Worker, User, Activity as ActivityType, ReportStatus, WasteType } from './types';
+import { Report, User, Activity as ActivityType, ReportStatus, WasteType } from './types';
 
-// Main App Component
+// ✨ Import services
+import authService from './services/authService';
+import reportService from './services/reportService';
+import workerService from './services/workerService';
+import dashboardService from './services/dashboardService';
+import notificationService from './services/notificationService';
+
+// ✅ Fixed imports
+import type { Worker } from './types/worker';
+import { mapWorkerFromBackend } from './types/worker';
+
+// ✅ Tab type (without notifications - it's shown via bell icon)
+type TabType = 'dashboard' | 'reports' | 'map' | 'workers';
+
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'reports' | 'map' | 'workers'>('dashboard');
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [reports, setReports] = useState<Report[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [activities, setActivities] = useState<ActivityType[]>([]);
@@ -37,70 +53,261 @@ export default function App() {
   const [showCitizensModal, setShowCitizensModal] = useState(false);
   const [sortWorkersByRating, setSortWorkersByRating] = useState(false);
   
+  // ✨ Add loading states
+  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
+  
+  // ✅ Notifications state
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  
   // Filters
   const [statusFilter, setStatusFilter] = useState<ReportStatus | 'All'>('All');
   const [workerFilter, setWorkerFilter] = useState<string>('All');
   const [zoneFilter, setZoneFilter] = useState<string>('All');
   const [wasteTypeFilter, setWasteTypeFilter] = useState<WasteType | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end:  '' });
   
-  // Initialize data
+  // ✅ Fetch unread notifications count
+  const fetchUnreadCount = async () => {
+    try {
+      const count = await notificationService.getUnreadCount();
+      setUnreadNotificationsCount(count);
+    } catch (error) {
+      console.error('Failed to fetch unread count:', error);
+    }
+  };
+  
+  // ✨ Check authentication on mount
   useEffect(() => {
-    const mockReports = generateMockReports();
-    const mockWorkers = generateMockWorkers();
-    setReports(mockReports);
-    setWorkers(mockWorkers);
-    
-    // Generate activities
-    const recentActivities: ActivityType[] = mockReports.slice(0, 8).map((r, i) => ({
-      id: `ACT-${i}`,
-      type: r.status === 'Resolved' ? 'resolved' : r.status === 'Assigned' ? 'assigned' : 'new_report',
-      message: r.status === 'Resolved' 
-        ? `Report ${r.id} resolved by ${r.workerName}` 
-        : r.status === 'Assigned'
-        ? `Report ${r.id} assigned to ${r.workerName}`
-        : `New report ${r.id} submitted in ${r.zone}`,
-      timestamp: r.submittedAt,
-      reportId: r.id
-    }));
-    setActivities(recentActivities);
-    
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      setReports(prev => {
-        const updated = [...prev];
-        const randomIndex = Math.floor(Math.random() * updated.length);
-        if (updated[randomIndex].status === 'Pending') {
-          updated[randomIndex] = {
-            ...updated[randomIndex],
-            status: 'Assigned',
-            workerName: mockWorkers[Math.floor(Math.random() * mockWorkers.length)].name,
-            assignedAt: new Date()
-          };
+    const checkAuth = async () => {
+      console.log('🔐 Checking authentication...');
+      
+      if (!authService.isAuthenticated()) {
+        console.log('❌ No token found');
+        
+        // Redirect to login if not on a public page
+        const publicPages = ['/login', '/reset-password'];
+        if (!publicPages.includes(location.pathname)) {
+          navigate('/login');
         }
-        return updated;
-      });
-    }, 10000);
-    
-    return () => clearInterval(interval);
+        
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log('✅ Token found, fetching profile...');
+        const adminData = await authService.getProfile();
+        
+        console.log('✅ Profile fetched:', adminData);
+        setCurrentUser({
+          id: adminData.admin_id?.toString() || '0',
+          name: adminData.name,
+          role: 'Admin',
+          email: adminData.email
+        });
+        
+        await loadInitialData();
+      } catch (error) {
+        console.error('❌ Auth check failed:', error);
+        authService.logout();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
   }, []);
+
+  // ✅ FIXED: Load workers function
+  const loadWorkers = async () => {
+    try {
+      console.log('👷 Loading workers...');
+      const workersResponse = await workerService.getWorkers();
+      
+      if (workersResponse. results && Array.isArray(workersResponse.results)) {
+        console.log('🔍 RAW BACKEND WORKERS:', workersResponse.results);
+        
+        const workersData:  Worker[] = [];
+        for (const backendWorker of workersResponse.results) {
+          try {
+            const mapped = mapWorkerFromBackend(backendWorker);
+            workersData.push(mapped);
+          } catch (mapError) {
+            console.error('❌ Failed to map worker:', mapError, backendWorker);
+          }
+        }
+        
+        console.log(`✅ Loaded ${workersData.length} workers`);
+        setWorkers(workersData);
+        return workersData;
+      } else {
+        console.warn('⚠️ Using mock workers data');
+        const mockWorkers = generateMockWorkers();
+        return mockWorkers;
+      }
+    } catch (error) {
+      console.error('❌ Failed to load workers:', error);
+      const mockWorkers = generateMockWorkers();
+      return mockWorkers;
+    }
+  };
+
+  // ✨ Load initial data from backend
+  const loadInitialData = async () => {
+    setDataLoading(true);
+    console.log('📊 Loading initial data...');
+    
+    try {
+      // Load workers
+      await loadWorkers();
+
+      // ✅ Load unread notifications count
+      await fetchUnreadCount();
+
+      // Load reports
+      let reportsData:  Report[] = [];
+      try {
+        const reportsResponse = await reportService.getReports();
+        if (reportsResponse.data) {
+          reportsData = reportsResponse.data;
+          console.log(`✅ Loaded ${reportsData. length} reports from backend`);
+        } else {
+          console.warn('⚠️ Using mock reports data');
+          reportsData = generateMockReports();
+        }
+      } catch (error) {
+        console.warn('⚠️ Using mock reports data');
+        reportsData = generateMockReports();
+      }
+      setReports(reportsData);
+
+      // Load activities
+      try {
+        console.log('📜 Fetching activities...');
+        const activitiesData = await dashboardService.getActivities(8);
+        
+        if (activitiesData.success && activitiesData.data && activitiesData.data.length > 0) {
+          const mappedActivities = activitiesData.data.map((act: any) => ({
+            id: String(act.id || act.log_id),
+            type: act.type || 'activity',
+            message: act.message || act.description,
+            timestamp:  new Date(act. timestamp || act.created_at),
+            reportId: act.target_id ?  String(act.target_id) : undefined
+          }));
+          setActivities(mappedActivities);
+          console.log(`✅ Loaded ${mappedActivities. length} activities`);
+        } else {
+          const recentActivities:  ActivityType[] = reportsData.slice(0, 8).map((r: Report, i: number) => ({
+            id: `ACT-${i}`,
+            type: r.status === 'Resolved' ? 'resolved' : r.status === 'Assigned' ? 'assigned' : 'new_report',
+            message:  r.status === 'Resolved' 
+              ? `Report ${r.id} resolved${r.workerName ? ` by ${r.workerName}` : ''}` 
+              : r.status === 'Assigned'
+              ? `Report ${r.id} assigned${r.workerName ? ` to ${r.workerName}` : ''}`
+              : `New report ${r.id} submitted`,
+            timestamp: r.submittedAt,
+            reportId:  r.id
+          }));
+          setActivities(recentActivities);
+          console.log('⚠️ Generated activities from reports');
+        }
+      } catch (error) {
+        console.error('❌ Failed to load activities:', error);
+        const recentActivities:  ActivityType[] = reportsData.slice(0, 8).map((r: Report, i: number) => ({
+          id: `ACT-${i}`,
+          type: r. status === 'Resolved' ? 'resolved' : r. status === 'Assigned' ? 'assigned' : 'new_report',
+          message: r. status === 'Resolved' 
+            ? `Report ${r.id} resolved${r.workerName ? ` by ${r.workerName}` : ''}` 
+            : r.status === 'Assigned'
+            ? `Report ${r.id} assigned${r.workerName ? ` to ${r.workerName}` : ''}`
+            : `New report ${r. id} submitted`,
+          timestamp: r. submittedAt,
+          reportId:  r.id
+        }));
+        setActivities(recentActivities);
+      }
+      
+      console.log('✅ Initial data loaded successfully');
+    } catch (error) {
+      console.error('❌ Failed to load initial data:', error);
+      setReports(generateMockReports());
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  // ✨ Refresh data periodically
+  useEffect(() => {
+    if (! currentUser) return;
+
+    console.log('⏰ Setting up data refresh interval');
+    const interval = setInterval(async () => {
+      try {
+        console. log('🔄 Refreshing data silently...');
+        
+        await Promise.all([
+          loadWorkers(),
+          fetchUnreadCount(),
+          (async () => {
+            const reportsResponse = await reportService.getReports();
+            if (reportsResponse.data) {
+              setReports(reportsResponse.data);
+            }
+          })()
+        ]);
+        
+        console. log('✅ Data refreshed silently');
+      } catch (error) {
+        console.error('❌ Failed to refresh data:', error);
+      }
+    }, 60000);
+
+    return () => {
+      console.log('🛑 Clearing refresh interval');
+      clearInterval(interval);
+    };
+  }, [currentUser]);
   
-  // Login handler
-  const handleLogin = (email: string, password: string) => {
-    // Simulated login - in production, this would validate against backend
-    setCurrentUser({
-      id: 'USR-ADMIN-001',
-      name: 'Admin User',
-      role: 'Admin',
-      email: email
-    });
+  // ✨ Modified login handler
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      console. log(`🔐 Attempting login for: ${email}`);
+      const response = await authService. login(email, password);
+      
+      if (response.success) {
+        console.log('✅ Login successful');
+        setCurrentUser({
+          id: response.data.user. admin_id?.toString() || '0',
+          name: response.data.user. name,
+          role: 'Admin',
+          email: response.data.user.email
+        });
+        
+        await loadInitialData();
+      }
+    } catch (error:  any) {
+      console.error('❌ Login failed:', error);
+      throw error;
+    }
   };
   
   // Logout handler
   const handleLogout = () => {
+    console.log('👋 Logging out...');
+    authService.logout();
     setCurrentUser(null);
     setActiveTab('dashboard');
+    setReports([]);
+    setWorkers([]);
+    setActivities([]);
+    setUnreadNotificationsCount(0);
+    setShowNotifications(false);
+    
+    localStorage.clear();
+    location.reload();
   };
   
   // Filter reports
@@ -110,20 +317,13 @@ export default function App() {
       if (workerFilter !== 'All' && report.workerName !== workerFilter) return false;
       if (zoneFilter !== 'All' && report.zone !== zoneFilter) return false;
       if (wasteTypeFilter !== 'All' && report.wasteType !== wasteTypeFilter) return false;
-      if (searchQuery && !report.id.toLowerCase().includes(searchQuery.toLowerCase()) && 
+      if (searchQuery && ! report.id.toLowerCase().includes(searchQuery.toLowerCase()) && 
           !report.location.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      if (dateRange.start && report.submittedAt < new Date(dateRange.start)) return false;
+      if (dateRange. start && report.submittedAt < new Date(dateRange. start)) return false;
       if (dateRange.end && report.submittedAt > new Date(dateRange.end)) return false;
       return true;
     }).sort((a, b) => {
-      // Sort by urgency (time pending)
-      const aUrgency = a.status === 'Pending' || a.status === 'Overdue' 
-        ? Date.now() - a.submittedAt.getTime() 
-        : 0;
-      const bUrgency = b.status === 'Pending' || b.status === 'Overdue' 
-        ? Date.now() - b.submittedAt.getTime() 
-        : 0;
-      return bUrgency - aUrgency;
+      return b.submittedAt. getTime() - a.submittedAt.getTime();
     });
   }, [reports, statusFilter, workerFilter, zoneFilter, wasteTypeFilter, searchQuery, dateRange]);
   
@@ -132,8 +332,12 @@ export default function App() {
     const total = reports.length;
     const pending = reports.filter(r => r.status === 'Pending').length;
     const assigned = reports.filter(r => r.status === 'Assigned').length;
-    const resolved = reports.filter(r => r.status === 'Resolved').length;
-    const overdue = reports.filter(r => r.status === 'Overdue').length;
+    const resolved = reports. filter(r => r.status === 'Resolved').length;
+    
+    const twoDaysAgo = Date.now() - (48 * 60 * 60 * 1000);
+    const overdue = reports.filter(r => 
+      r.status === 'Pending' && r.submittedAt. getTime() < twoDaysAgo
+    ).length;
     
     return { total, pending, assigned, resolved, overdue };
   }, [reports]);
@@ -143,26 +347,40 @@ export default function App() {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - (6 - i));
+      date.setHours(0, 0, 0, 0);
+      
+      const nextDate = new Date(date);
+      nextDate.setDate(nextDate.getDate() + 1);
+      
+      const dayReports = reports.filter(r => 
+        r.submittedAt >= date && r.submittedAt < nextDate
+      );
+      
+      const dayResolved = reports.filter(r => 
+        r. resolvedAt && r. resolvedAt >= date && r.resolvedAt < nextDate
+      );
+      
       return {
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        reports: Math.floor(Math.random() * 15) + 5,
-        resolved: Math.floor(Math.random() * 10) + 3
+        reports: dayReports. length,
+        resolved: dayResolved. length
       };
     });
     return last7Days;
-  }, []);
+  }, [reports]);
   
   const statusDistribution = useMemo(() => [
     { name: 'Pending', value: stats.pending, color: '#ef4444' },
     { name: 'Assigned', value: stats.assigned, color: '#f59e0b' },
-    { name: 'Resolved', value: stats.resolved, color: '#10b981' },
-    { name: 'Overdue', value: stats.overdue, color: '#dc2626' }
-  ], [stats]);
+    { name: 'Resolved', value: stats. resolved, color: '#10b981' },
+  ]. filter(item => item.value > 0), [stats]);
   
   // Top citizens and workers
   const topCitizens = useMemo(() => {
     const citizenReports = reports.reduce((acc, r) => {
-      acc[r.citizenName] = (acc[r.citizenName] || 0) + 1;
+      if (r.citizenName && r.citizenName !== 'Admin Created') {
+        acc[r.citizenName] = (acc[r.citizenName] || 0) + 1;
+      }
       return acc;
     }, {} as Record<string, number>);
     
@@ -173,146 +391,335 @@ export default function App() {
   }, [reports]);
   
   const topWorkers = useMemo(() => {
-    return [...workers]
-      .sort((a, b) => b.tasksCompleted - a.tasksCompleted)
+    return [... workers]
+      .sort((a, b) => {
+        if (b.rating !== a.rating) {
+          return b. rating - a.rating;
+        }
+        return b.tasksCompleted - a.tasksCompleted;
+      })
       .slice(0, 5);
   }, [workers]);
   
-  // Task assignment
-  const assignTask = (reportId: string, workerId: string) => {
-    setReports(prev => prev.map(r => {
-      if (r.id === reportId) {
-        const worker = workers.find(w => w.id === workerId);
-        return {
-          ...r,
-          workerId,
-          workerName: worker?.name,
-          status: 'Assigned' as ReportStatus,
-          assignedAt: new Date()
-        };
+  // ✨ Task assignment
+  const assignTask = async (reportId: string, workerId: string) => {
+    try {
+      console.log(`📌 Assigning report ${reportId} to worker ${workerId}`);
+      await reportService.assignWorker(reportId, workerId);
+      
+      const response = await reportService.getReports();
+      if (response.data) {
+        setReports(response.data);
       }
-      return r;
-    }));
-    
-    setActivities(prev => [{
-      id: `ACT-${Date.now()}`,
-      type: 'assigned',
-      message: `Report ${reportId} assigned to worker`,
-      timestamp: new Date(),
-      reportId
-    }, ...prev.slice(0, 7)]);
-  };
-  
-  // Override status
-  const overrideStatus = (reportId: string, newStatus: ReportStatus) => {
-    setReports(prev => prev.map(r => {
-      if (r.id === reportId) {
-        return {
-          ...r,
-          status: newStatus,
-          resolvedAt: newStatus === 'Resolved' ? new Date() : undefined
-        };
-      }
-      return r;
-    }));
-  };
-  
-  // Worker CRUD
-  const saveWorker = (worker: Partial<Worker>) => {
-    if (editingWorker) {
-      setWorkers(prev => prev.map(w => w.id === editingWorker.id ? { ...w, ...worker } : w));
-    } else {
-      const newWorker: Worker = {
-        id: `WKR-${String(workers.length + 1).padStart(4, '0')}`,
-        name: worker.name || '',
-        email: worker.email || '',
-        phone: worker.phone || '',
-        zone: worker.zone || '',
-        tasksCompleted: 0,
-        avgCompletionTime: 0,
-        rating: 5.0,
-        active: true
-      };
-      setWorkers(prev => [...prev, newWorker]);
+      
+      setActivities(prev => [{
+        id: `ACT-${Date.now()}`,
+        type: 'assigned',
+        message:  `Report ${reportId} assigned to worker`,
+        timestamp: new Date(),
+        reportId
+      }, ...prev. slice(0, 7)]);
+      
+      console.log('✅ Task assigned successfully');
+    } catch (error) {
+      console.error('❌ Failed to assign task:', error);
+      throw error;
     }
-    setShowWorkerModal(false);
-    setEditingWorker(null);
   };
   
-  const deleteWorker = (workerId: string) => {
-    setWorkers(prev => prev.filter(w => w.id !== workerId));
+  // ✨ Override status
+  const overrideStatus = async (reportId: string, newStatus: ReportStatus) => {
+    try {
+      console.log(`🔄 Updating report ${reportId} status to ${newStatus}`);
+      await reportService.updateStatus(reportId, newStatus);
+      
+      const response = await reportService.getReports();
+      if (response.data) {
+        setReports(response.data);
+      }
+      
+      console.log('✅ Status updated successfully');
+    } catch (error) {
+      console.error('❌ Failed to update status:', error);
+      throw error;
+    }
   };
   
-  const toggleWorkerStatus = (workerId: string) => {
-    setWorkers(prev => prev.map(w => w.id === workerId ? { ...w, active: !w.active } : w));
+  // ✅ FIXED: Worker CRUD with proper refresh
+  const saveWorker = async (
+    workerData:  Partial<Worker> & { 
+      password?: string; 
+      profileImage?: File;
+    }
+  ) => {
+    try {
+      console.log('💾 Saving worker:', workerData);
+      
+      if (editingWorker) {
+        const updatePayload:  any = {
+          name: workerData. name,
+          phone: workerData. phone || '',
+        };
+
+        if (workerData.profileImage instanceof File) {
+          updatePayload.profile_image = workerData.profileImage;
+        }
+        
+        await workerService.updateWorker(editingWorker.id, updatePayload);
+        console.log('✅ Worker updated');
+
+      } else {
+        const employeeCode = `WRK${Date.now().toString().slice(-6)}`;
+        
+        const createPayload: any = {
+          name:  workerData.name! ,
+          email:  workerData.email! ,
+          phone:  workerData.phone || '',
+          password: workerData. password || 'ChangeMe123! ',
+          employee_code: employeeCode,
+        };
+
+        if (workerData.profileImage instanceof File) {
+          createPayload.profile_image = workerData.profileImage;
+        }
+        
+        await workerService.createWorker(createPayload);
+        console.log('✅ Worker created');
+      }
+      
+      await loadWorkers();
+      setShowWorkerModal(false);
+      setEditingWorker(null);
+      
+    } catch (error:  any) {
+      console.error('❌ Failed to save worker:', error);
+      
+      let errorMessage = 'Failed to save worker.  Please try again.';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?. data) {
+        const data = error.response. data;
+        
+        if (typeof data === 'string') {
+          errorMessage = data;
+        } else if (data. error) {
+          errorMessage = data.error;
+        } else if (data. message) {
+          errorMessage = data. message;
+        } else if (typeof data === 'object') {
+          const firstError = Object.entries(data)[0];
+          if (firstError) {
+            const [field, message] = firstError;
+            const msg = Array.isArray(message) ? message[0] : message;
+            errorMessage = `${field}: ${msg}`;
+          }
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
+  };
+  
+  const deleteWorker = async (workerId: string) => {
+    try {
+      console.log(`🗑️ Deleting worker ${workerId}`);
+      await workerService.deleteWorker(workerId);
+      await loadWorkers();
+      console.log('✅ Worker deleted');
+    } catch (error) {
+      console.error('❌ Failed to delete worker:', error);
+      throw error;
+    }
+  };
+  
+  const toggleWorkerStatus = async (workerId: string) => {
+    try {
+      console.log(`🔄 Toggling worker ${workerId} status`);
+      await workerService.toggleStatus(workerId);
+      setWorkers(prev => prev.map(w => w.id === workerId ? { ...w, active: !w.active } : w));
+      console.log('✅ Worker status toggled');
+    } catch (error) {
+      console. error('❌ Failed to toggle worker status:', error);
+      await loadWorkers();
+      throw error;
+    }
   };
   
   // Worker profile handlers
   const handleViewProfile = (workerId: string) => {
+    console.log(`👀 Viewing profile for worker ${workerId}`);
+    
+    const worker = workers.find(w => w.id === workerId);
+    
+    if (!worker) {
+      console. error('❌ Worker not found:', workerId);
+      alert('Worker not found.  Please refresh the page.');
+      return;
+    }
+    
     setSelectedWorkerId(workerId);
+    setActiveTab('workers');
   };
   
   const handleBackToWorkers = () => {
+    console.log('⬅️ Back to workers list');
     setSelectedWorkerId(null);
+    setSortWorkersByRating(false);
+    setActiveTab('workers');
   };
   
-  const handlePasswordReset = (workerId: string) => {
-    alert(`Password reset link sent to worker ${workerId}`);
+  // ✅ Password reset handler
+  const handlePasswordReset = async (workerId: string) => {
+    try {
+      console.log(`🔑 Sending password reset for worker ${workerId}`);
+      
+      const result = await workerService.resetWorkerPassword(workerId);
+      
+      if (result. success) {
+        console.log('✅ Password reset initiated');
+        alert(`✅ Password reset email sent to ${result.email || 'worker email'}`);
+      } else {
+        console.warn('⚠️ Password reset response:', result);
+        alert(result.message || 'Password reset email sent');
+      }
+    } catch (error:  any) {
+      console.error('❌ Failed to send password reset:', error);
+      
+      let errorMessage = 'Failed to send password reset. Please try again. ';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?. data?. message) {
+        errorMessage = error. response.data.message;
+      } else if (error.response?.data?. error) {
+        errorMessage = error. response.data.error;
+      }
+      
+      alert(`❌ ${errorMessage}`);
+    }
   };
   
-  // Task creation handlers
+  // Task creation
   const handleCreateTask = (workerId: string) => {
+    console.log(`➕ Creating task for worker ${workerId}`);
     setTaskWorkerId(workerId);
     setShowCreateTaskModal(true);
   };
   
-  const handleTaskCreation = (task: any) => {
-    // Create new report from task
-    const newReport: Report = {
-      id: `RPT-${String(reports.length + 1001).padStart(6, '0')}`,
-      citizenName: 'Admin Created',
-      citizenId: 'ADMIN',
-      workerName: workers.find(w => w.id === task.workerId)?.name,
-      workerId: task.workerId,
-      location: task.location,
-      zone: task.zone,
-      status: 'Assigned',
-      submittedAt: new Date(),
-      assignedAt: new Date(),
-      wasteType: task.wasteType as WasteType,
-      aiVerification: {
-        verified: true,
-        confidence: 100,
-        classification: task.wasteType as WasteType
-      },
-      description: task.description,
-      beforeImage: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=400',
-      urgency: task.priority === 'High' ? 9 : task.priority === 'Medium' ? 5 : 3,
-      lat: 40.7128,
-      lng: -74.0060
-    };
+ // ✅ Updated:  Task is already created in modal, just refresh data
+const handleTaskCreation = async () => {
+  console.log('✅ Task created, refreshing data...');
+  
+  try {
+    // Refresh reports list
+    const response = await reportService. getReports();
+    if (response.data) {
+      setReports(response.data);
+    }
     
-    setReports(prev => [newReport, ...prev]);
+    // Close modal
     setShowCreateTaskModal(false);
     setTaskWorkerId(null);
     
     // Add activity
     setActivities(prev => [{
       id: `ACT-${Date.now()}`,
-      type: 'assigned',
-      message: `Task ${newReport.id} created and assigned to ${newReport.workerName}`,
-      timestamp: new Date(),
-      reportId: newReport.id
-    }, ...prev.slice(0, 7)]);
+      type: 'new_report',
+      message: 'New task created by admin',
+      timestamp:  new Date(),
+    }, ...prev. slice(0, 7)]);
+    
+    console.log('✅ Data refreshed successfully');
+  } catch (error) {
+    console.error('❌ Failed to refresh data:', error);
+  }
+};
+
+  // ✅ Handle notification icon click
+  const handleNotificationClick = () => {
+    console.log('🔔 Opening notifications');
+    setShowNotifications(true);
+  };
+
+  // ✅ Handle notification close
+  const handleNotificationClose = () => {
+    console. log('🔔 Closing notifications');
+    setShowNotifications(false);
+    fetchUnreadCount(); // Refresh count when closing
   };
   
-  // Login Screen
-  if (!currentUser) {
-    return <LoginScreen onLogin={handleLogin} />;
+  // Loading screen
+  if (loading || !currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-400 text-lg">Loading Neat Now Admin Panel...</p>
+          <p className="text-slate-600 text-sm mt-2">Please wait while we fetch your data</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Show Notifications Page (Full Screen)
+  if (showNotifications) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        {/* Header */}
+        <header className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-50">
+          <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-white font-bold">Neat Now</h1>
+                  <p className="text-xs text-slate-400">Admin Control Panel</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
+                  <div className="text-right">
+                    <p className="text-sm text-white font-medium">{currentUser.name}</p>
+                    <p className="text-xs text-slate-400">{currentUser.email}</p>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all"
+                    title="Logout"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Notifications Content */}
+        <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <Notifications 
+            onBack={handleNotificationClose}
+            onNotificationRead={fetchUnreadCount}
+          />
+        </main>
+      </div>
+    );
   }
   
+  // Main Application UI
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      {/* Data Loading Indicator */}
+      {dataLoading && (
+        <div className="fixed top-20 right-4 z-50 bg-emerald-500/20 border border-emerald-500/30 backdrop-blur-sm rounded-lg px-4 py-2 flex items-center gap-2 animate-fade-in">
+          <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-emerald-400 text-sm">Refreshing data...</span>
+        </div>
+      )}
+      
       {/* Header */}
       <header className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -322,37 +729,71 @@ export default function App() {
                 <Activity className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-white">Neat Now </h1>
+                <h1 className="text-white font-bold">Neat Now</h1>
                 <p className="text-xs text-slate-400">Admin Control Panel</p>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-              <button className="relative p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
-              
-              <div className="flex items-center gap-3 px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
-                <div className="text-right">
-                  <p className="text-sm text-white">{currentUser.name}</p>
-                  <p className="text-xs text-slate-400">User ID: {currentUser.id}</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+  {/* ✅ Notification Bell Icon */}
+  <button 
+    onClick={handleNotificationClick}
+    className="relative p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+    title="Notifications"
+  >
+    <Bell className="w-5 h-5" />
+    {unreadNotificationsCount > 0 && (
+      <span
+        className="absolute animate-pulse bg-red-600 text-white font-bold shadow-sm"
+        style={{
+          /* Position it at the bottom-left of the bell icon */
+          bottom: '-2px',
+          left: '-2px',
+          
+          /* Forced Circular Shape */
+          width: unreadNotificationsCount > 99 ? 'auto' : '18px',
+          height: '18px',
+          minWidth: '18px',
+          borderRadius: '999px', // High value ensures circle
+          
+          /* Centering the text */
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          
+          /* Text styling */
+          fontSize: '10px',
+          padding: unreadNotificationsCount > 99 ? '0 6px' : '0',
+          lineHeight: '1',
+          zIndex: 10
+        }}
+      >
+        {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+      </span>
+    )}
+  </button>
+
+  {/* User Profile */}
+  <div className="flex items-center gap-3 px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
+    <div className="text-right">
+      <p className="text-sm text-white font-medium">{currentUser.name}</p>
+      <p className="text-xs text-slate-400">{currentUser.email}</p>
+    </div>
+    <button
+      onClick={handleLogout}
+      className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all"
+    >
+      <LogOut className="w-4 h-4" />
+    </button>
+  </div>
+</div>
           </div>
         </div>
       </header>
       
       {/* Navigation */}
       <nav className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-800">
-        <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg: px-8">
           <div className="flex gap-1 py-2">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -362,15 +803,27 @@ export default function App() {
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => {
+                  console.log(`📍 Navigating to ${tab. label}`);
+                  setActiveTab(tab.id as TabType);
+                  setSelectedWorkerId(null);
+                  if (tab.id !== 'workers') {
+                    setSortWorkersByRating(false);
+                  }
+                }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
                   activeTab === tab.id
                     ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    :  'text-slate-400 hover: text-white hover:bg-slate-800'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
                 <span className="hidden sm:inline">{tab.label}</span>
+                {tab.id === 'workers' && selectedWorkerId && (
+                  <span className="text-xs bg-emerald-400 text-slate-900 px-1. 5 py-0.5 rounded-full">
+                    Profile
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -389,8 +842,10 @@ export default function App() {
             statusDistribution={statusDistribution}
             reports={reports}
             onNavigateToWorkers={() => {
+              console.log('📊 Navigating to top workers');
               setActiveTab('workers');
               setSortWorkersByRating(true);
+              setSelectedWorkerId(null);
             }}
             onViewAllCitizens={() => setShowCitizensModal(true)}
           />
@@ -420,17 +875,18 @@ export default function App() {
           <MapView reports={reports} trendData={trendData} />
         )}
         
-        {activeTab === 'workers' && !selectedWorkerId && (
+        {activeTab === 'workers' && ! selectedWorkerId && (
           <Workers
-            workers={workers}
             onViewProfile={handleViewProfile}
             onEdit={(worker) => {
+              console.log('✏️ Editing worker:', worker);
               setEditingWorker(worker);
               setShowWorkerModal(true);
             }}
             onDelete={deleteWorker}
             onToggleStatus={toggleWorkerStatus}
             onAddNew={() => {
+              console.log('➕ Adding new worker');
               setEditingWorker(null);
               setShowWorkerModal(true);
             }}
@@ -443,19 +899,22 @@ export default function App() {
           <WorkerProfile
             worker={workers.find(w => w.id === selectedWorkerId)!}
             currentAssignments={reports.filter(r => r.workerId === selectedWorkerId && r.status !== 'Resolved')}
-            activityLog={activities.filter(a => a.reportId && reports.find(r => r.id === a.reportId && r.workerId === selectedWorkerId)).slice(0, 10).map(a => ({
-              id: a.id,
-              action: a.message,
-              timestamp: a.timestamp,
-              reportId: a.reportId
-            }))}
+            activityLog={activities
+              .filter(a => a.reportId && reports.find(r => r. id === a.reportId && r.workerId === selectedWorkerId))
+              .slice(0, 10)
+              .map(a => ({
+                id: a.id,
+                action: a.message,
+                timestamp:  a.timestamp,
+                reportId: a.reportId
+              }))}
             onBack={handleBackToWorkers}
             onPasswordReset={handlePasswordReset}
           />
         )}
       </main>
       
-      {/* Report Detail Modal */}
+      {/* Modals */}
       {selectedReport && (
         <ReportDetailModal
           report={selectedReport}
@@ -466,11 +925,11 @@ export default function App() {
         />
       )}
       
-      {/* Worker Modal */}
       {showWorkerModal && (
         <WorkerModal
           worker={editingWorker}
           onClose={() => {
+            console.log('❌ Closing worker modal');
             setShowWorkerModal(false);
             setEditingWorker(null);
           }}
@@ -478,12 +937,12 @@ export default function App() {
         />
       )}
       
-      {/* Create Task Modal */}
       {showCreateTaskModal && (
         <CreateTaskModal
           worker={workers.find(w => w.id === taskWorkerId) || null}
-          workers={workers.filter(w => w.active)}
+          workers={workers. filter(w => w.active)}
           onClose={() => {
+            console.log('❌ Closing create task modal');
             setShowCreateTaskModal(false);
             setTaskWorkerId(null);
           }}
@@ -491,7 +950,6 @@ export default function App() {
         />
       )}
       
-      {/* Citizens Modal */}
       {showCitizensModal && (
         <CitizensModal
           onClose={() => setShowCitizensModal(false)}
