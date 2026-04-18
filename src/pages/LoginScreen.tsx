@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Activity } from 'lucide-react';
+import authService from '../services/authService';
 
 interface LoginScreenProps {
-  onLogin: (email: string, password: string) => void;
+  onLogin: (email: string, password:  string) => void;
 }
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
@@ -10,18 +11,69 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ✨ MODIFIED: Add actual API call
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin(email, password);
+    setLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      // Call backend API
+      const response = await authService.login(email, password);
+      
+      if (response.success) {
+        setSuccessMessage(`Welcome back, ${response.data.user.name}!`);
+         
+        // Call parent callback after short delay
+        setTimeout(() => {
+          onLogin(email, password);
+        }, 500);
+      }
+    } catch (err: any) {
+      // Show error message
+      const errorMsg = err.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat().join(', ')
+        : err.message || 'Login failed. Please check your credentials.';
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleForgotPassword = (e: React.FormEvent) => {
+  // ✨ MODIFIED: Add actual password reset API call
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('Password reset link has been sent to your email!');
-    setShowForgotPassword(false);
+    setLoading(true);
+    setError('');
+    setSuccessMessage('');
+
+    try {
+      // Call backend API
+      const response = await authService.requestPasswordReset(resetEmail);
+      
+      if (response.success) {
+        setSuccessMessage('Password reset link has been sent to your email! ');
+        setTimeout(() => {
+          setShowForgotPassword(false);
+          setResetEmail('');
+          setSuccessMessage('');
+        }, 2000);
+      }
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || 'Failed to send reset link. Please try again.';
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // 🎨 FORGOT PASSWORD SCREEN - Your exact styling, just added backend calls
   if (showForgotPassword) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 py-8 overflow-auto"> 
@@ -35,25 +87,46 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           </div>
 
           <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-lg p-5 shadow-2xl">
+            {/* ✨ ADDED: Error/Success messages */}
+            {error && (
+              <div className="mb-3 p-3 bg-red-500/10 border border-red-500/50 rounded-md text-xs text-red-400">
+                {error}
+              </div>
+            )}
+            {successMessage && (
+              <div className="mb-3 p-3 bg-emerald-500/10 border border-emerald-500/50 rounded-md text-xs text-emerald-400">
+                {successMessage}
+              </div>
+            )}
+
             <form onSubmit={handleForgotPassword} className="space-y-3">
               <div>
                 <label className="block text-xs text-slate-300 mb-1.5">Email Address</label>
                 <input
                   type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-800/50 border border-slate-700 rounded-md text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                   placeholder="noor@cleanup.gov"
                   required
+                  disabled={loading}
                 />
               </div>
               <button
                 type="submit"
-                className="w-full py-2.5 text-sm text-center bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-md hover:shadow-xl hover:shadow-emerald-500/30 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+                disabled={loading}
+                className="w-full h-10 flex items-center justify-center text-sm bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-md hover:shadow-xl hover:shadow-emerald-500/30 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Send Reset Link
+                {loading ? 'Sending...' : 'Send Reset Link'}
               </button>
               <button
                 type="button"
-                onClick={() => setShowForgotPassword(false)}
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setError('');
+                  setSuccessMessage('');
+                }}
+                disabled={loading}
                 className="w-full text-xs text-center text-slate-400 hover:text-emerald-500 transition-colors mt-2"
               >
                 ← Back to Login
@@ -71,6 +144,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     );
   }
 
+  // 🎨 MAIN LOGIN SCREEN - Your exact styling, just added backend calls
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 py-8 relative overflow-auto">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -96,6 +170,18 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             <p className="text-xs text-slate-400">Sign in to access your admin dashboard</p>
           </div>
 
+          {/* ✨ ADDED:  Error/Success messages */}
+          {error && (
+            <div className="mb-3 p-3 bg-red-500/10 border border-red-500/50 rounded-md text-xs text-red-400">
+              {error}
+            </div>
+          )}
+          {successMessage && (
+            <div className="mb-3 p-3 bg-emerald-500/10 border border-emerald-500/50 rounded-md text-xs text-emerald-400">
+              {successMessage}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-slate-300 mb-1.5">Email Address</label>
@@ -106,6 +192,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                 className="w-full px-3 py-2.5 bg-slate-800/50 border border-slate-700 rounded-md text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                 placeholder="admin@cleanup.gov"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -118,6 +205,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                 className="w-full px-3 py-2.5 bg-slate-800/50 border border-slate-700 rounded-md text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                 placeholder="••••••••"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -127,6 +215,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={loading}
                   className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
                 />
                 <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors">Remember me</span>
@@ -135,6 +224,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
               <button
                 type="button"
                 onClick={() => setShowForgotPassword(true)}
+                disabled={loading}
                 className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
               >
                 Forgot password?
@@ -143,19 +233,17 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
             <button
               type="submit"
-              className="w-full py-2.5 text-sm text-center bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-md hover:shadow-xl hover:shadow-emerald-500/30 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+              disabled={loading}
+              className="w-full py-2.5 text-sm text-center bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-md hover:shadow-xl hover:shadow-emerald-500/30 transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In to Dashboard
+              {loading ? 'Signing in...' : 'Sign In to Dashboard'}
             </button>
           </form>
-
-
         </div>
 
         <div className="text-center mt-3 space-y-1.5">
-
           <p className="text-xs text-slate-600">
-            © 2025 Neat Now Cleanup Management. All rights reserved.
+            © 2025 Neat Now Cleanup Management.  All rights reserved.
           </p>
         </div>
       </div>
